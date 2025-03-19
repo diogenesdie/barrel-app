@@ -26,22 +26,22 @@ class VoiceCommandProvider extends ChangeNotifier {
   }
 
   void _startListening() async {
-    if (_isProcessingCommand || isListening) return;;
-    await _speech.listen(
-      onResult: (result) {
-        String text = result.recognizedWords.toLowerCase();
-        print(text);
-        if (text.contains("eva")) {
-          isListening = true;
-          notifyListeners();
-          _isProcessingCommand = true;
-          _listenForCommand();
-        }
-      },
-      listenFor: const Duration(seconds: 60),
-      cancelOnError: false,
-      localeId: 'pt_BR',
-    );
+    // if (_isProcessingCommand || isListening) return;
+    // await _speech.listen(
+    //   onResult: (result) {
+    //     String text = result.recognizedWords.toLowerCase();
+    //     print(text);
+    //     if (text.contains("eva")) {
+    //       isListening = true;
+    //       notifyListeners();
+    //       _isProcessingCommand = true;
+    //       _listenForCommand();
+    //     }
+    //   },
+    //   listenFor: const Duration(seconds: 60),
+    //   cancelOnError: false,
+    //   localeId: 'pt_BR',
+    // );
   }
 
   void _listenForCommand() async {

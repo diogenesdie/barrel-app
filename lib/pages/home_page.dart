@@ -1,10 +1,15 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:smart_home/components/gradient_icon.dart';
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/pages/ble_wifi_setup_page.dart';
+import 'package:smart_home/pages/perfil_page.dart';
 import 'package:smart_home/pages/search_devices_page.dart';
+import 'package:smart_home/pages/your_home_page.dart';
 import 'package:smart_home/providers/voice_command_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:uni_links/uni_links.dart';
@@ -20,12 +25,17 @@ class HomePage extends StatefulWidget {
 class _HomePageState extends State<HomePage> {
   List<dynamic> devices = [];
   late stt.SpeechToText _speech;
+  int _selectedIndex = 0;
+  final PageController _pageController = PageController();
+  late final List<Widget> _pages;
 
   @override
   void initState() {
     super.initState();
     _loadDevices();
     _handleDeepLinks();
+
+    _pages = [const YourHomePage(), const SearchDevicesPage(), const PerfilPage()];
   }
 
   @override
@@ -59,7 +69,6 @@ class _HomePageState extends State<HomePage> {
 
     List<dynamic> foundedDevices = [];
 
-    // Procurar dispositivos correspondentes
     for (var device in devices) {
       String deviceName = device['name'].toLowerCase();
       List<String> deviceNameParts = deviceName.split(' ');
@@ -165,111 +174,96 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Consumer<VoiceCommandProvider>(builder: (context, voiceProvider, child) {
-      voiceProvider.onCommandExecuted = (command) {
-        print("Command executed: $command");
-        _processCommand(command);
-      };
-      return Scaffold(
-        appBar: AppBar(
-          title: Text(!voiceProvider.isListening ? 'Diga "Eva"' : 'Ouvindo...'),
-          centerTitle: voiceProvider.isListening,
-          backgroundColor: !voiceProvider.isListening ? Theme.of(context).primaryColor : Colors.red,
-        ),
-        body: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Expanded(
-                child: devices.isEmpty
-                    ? const Center(child: Text("Nenhum dispositivo encontrado."))
-                    : GridView.builder(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          crossAxisSpacing: 8,
-                          mainAxisSpacing: 8,
-                        ),
-                        itemCount: devices.length,
-                        itemBuilder: (context, index) {
-                          final device = devices[index];
-                          bool hasAction = device["actions"] != null && device["actions"].isNotEmpty;
-
-                          return Card(
-                            child: Padding(
-                              padding: const EdgeInsets.all(16.0),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(_getIcon(device["icon"])),
-                                      const SizedBox(width: 4),
-                                      Text(device["name"]),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 10),
-                                  if (hasAction)
-                                    IconButton(
-                                      style: ElevatedButton.styleFrom(
-                                        iconSize: 48,
-                                      ),
-                                      icon: const Icon(Icons.power_settings_new),
-                                      onPressed: () {
-                                        final action = device["actions"].firstWhere((a) => a["type"] == "switch", orElse: () => null);
-                                        if (action != null) {
-                                          String route = action["route"];
-                                          String externalPort = device["external_port"].toString();
-                                          _toggleDevice(externalPort, route, index);
-                                        }
-                                      },
-                                    ),
-                                  const SizedBox(height: 10),
-                                  if (device["props"]["state"] != null)
-                                    Container(
-                                      padding: const EdgeInsets.only(left: 8, right: 8),
-                                      decoration: BoxDecoration(
-                                        borderRadius: BorderRadius.circular(10),
-                                        color: device["props"]["state"] == "on" ? Colors.green : Colors.red,
-                                      ),
-                                      child: Text(
-                                        device["props"]["state"] == "on" ? "Ligado" : "Desligado",
-                                        style: TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 18,
-                                        ),
-                                      ),
-                                    ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.manage_search),
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const SearchDevicesPage(),
-                      ),
-                    ).then((_) => _loadDevices());
-                  },
-                  label: const Text("Gerenciar dispositivos"),
-                ),
-              ),
-            ],
-          ),
-        ),
+  void _onItemTapped(int index) {
+    setState(() {
+      _selectedIndex = index;
+      _pageController.animateToPage(
+        index,
+        duration: Duration(milliseconds: 300),
+        curve: Curves.easeInOutCubic,
       );
     });
+  }
+
+  void _onPageChanged(int index) {
+    setState(() {
+      _selectedIndex = index;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        elevation: 10,
+        shadowColor: Colors.grey[200],
+        title: Row(children: [
+          Icon(Icons.home_outlined),
+          SizedBox(width: 10),
+          Text('Barrel Smart Home'),
+        ],),
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.vertical(
+              bottom: Radius.circular(30),
+            ),
+          ),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(
+            bottom: Radius.circular(30),
+          ),
+        ),
+      ),
+      body: PageView(controller: _pageController, onPageChanged: _onPageChanged, children: _pages),
+      bottomNavigationBar: BottomNavigationBar(
+        currentIndex: _selectedIndex,
+        onTap: _onItemTapped,
+        items: [
+          BottomNavigationBarItem(
+            icon: GradientIcon(
+              icon: Icons.home,
+              gradient: LinearGradient(
+                colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              isSelected: _selectedIndex == 0,
+            ),
+            label: 'Home',
+          ),
+          BottomNavigationBarItem(
+            icon: GradientIcon(
+              icon: Icons.list,
+              gradient: LinearGradient(
+                colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              isSelected: _selectedIndex == 1,
+            ),
+            label: 'Dispositivos',
+          ),
+          BottomNavigationBarItem(
+            icon: GradientIcon(
+              icon: Icons.person,
+              gradient: LinearGradient(
+                colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+              isSelected: _selectedIndex == 2,
+            ),
+            label: 'Perfil',
+          ),
+        ],
+        showUnselectedLabels: true,
+      ),
+    );
   }
 }

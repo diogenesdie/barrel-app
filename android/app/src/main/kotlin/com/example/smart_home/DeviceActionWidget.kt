@@ -96,17 +96,18 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
     }
 
     val views = RemoteViews(context.packageName, R.layout.device_action_widget)
-
-    // Remove all previous buttons
     views.removeAllViews(R.id.widget_container)
 
-    for (device in deviceList) {
+    var rowView: RemoteViews? = null
+    for ((index, device) in deviceList.withIndex()) {
+        if (index % 4 == 0) { // A cada 4 dispositivos, cria uma nova linha
+            rowView = RemoteViews(context.packageName, R.layout.widget_row)
+            views.addView(R.id.widget_container, rowView)
+        }
+
         val buttonView = RemoteViews(context.packageName, R.layout.widget_button_item)
         buttonView.setTextViewText(R.id.device_name, device.name)
-
-        // Set the icon based on the device type
-        val iconResId = R.drawable.ic_power
-        buttonView.setImageViewResource(R.id.device_icon, iconResId)
+        buttonView.setImageViewResource(R.id.device_icon, R.drawable.ic_power)
 
         val intent = Intent(context, DeviceActionWidget::class.java).apply {
             action = "TRIGGER_DEVICE_ACTION"
@@ -116,13 +117,13 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            device.name.hashCode(), // Unique request code for each device
+            device.name.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
         buttonView.setOnClickPendingIntent(R.id.device_icon, pendingIntent)
-        views.addView(R.id.widget_container, buttonView)
+        rowView?.addView(R.id.row_container, buttonView)
     }
 
     appWidgetManager.updateAppWidget(appWidgetId, views)

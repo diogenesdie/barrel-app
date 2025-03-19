@@ -20,7 +20,7 @@ class SmartHomeApp extends StatelessWidget {
         theme: ThemeData(
           primarySwatch: Colors.brown,
           primaryColor: Colors.brown,
-          primaryColorLight: Colors.brown[200],
+          primaryColorLight: Color(0xFFB8860B),
           dialogBackgroundColor: Colors.grey[200],
           drawerTheme: DrawerThemeData(
             backgroundColor: Colors.white,
@@ -33,14 +33,26 @@ class SmartHomeApp extends StatelessWidget {
             iconTheme: IconThemeData(color: Colors.white),
             actionsIconTheme: IconThemeData(color: Colors.white),
           ),
+          progressIndicatorTheme: ProgressIndicatorThemeData(
+            color: Color(0xFFB8860B),
+          ),
+          bottomSheetTheme: BottomSheetThemeData(
+            backgroundColor: Colors.white,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          bottomNavigationBarTheme: BottomNavigationBarThemeData(
+            backgroundColor: Colors.white,
+            selectedItemColor: Colors.brown,
+            unselectedItemColor: Colors.grey[800],
+          ),
           iconButtonTheme: IconButtonThemeData(
             style: ButtonStyle(
               padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
                 const EdgeInsets.all(8),
               ),
               //putple background color with white icon coplor
-              backgroundColor: MaterialStateProperty.all<Color>(Colors.brown),
-              foregroundColor: MaterialStateProperty.all<Color>(Colors.white),
               shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                 RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),

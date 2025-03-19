@@ -1,10 +1,15 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:multicast_dns/multicast_dns.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
+import 'package:wifi_scan/wifi_scan.dart';
 
 class SearchDevicesPage extends StatefulWidget {
   const SearchDevicesPage({super.key});
@@ -17,76 +22,179 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   final List<Map<String, String>> esps = [];
   bool isScanning = false;
   bool isAdding = false;
+  List<BluetoothDevice> devices = [];
 
   @override
   void initState() {
     super.initState();
+    scanEsp32AccessPoints();
     discoverDevices();
   }
 
-  Future<void> discoverDevices() async {
-    setState(() {
-      isScanning = true;
-    });
+  @override
+  void dispose() {
+    super.dispose();
+  }
 
-    final MDnsClient client = MDnsClient();
-    await client.start();
+  Future<void> scanEsp32AccessPoints() async {
+    // Solicita permissão de localização (necessária para escanear Wi-Fi)
+    var status = await Permission.location.request();
+    if (!status.isGranted) {
+      print("Permissão de localização negada.");
+      return;
+    }
 
-    try {
-      await for (PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
-        ResourceRecordQuery.serverPointer('_http._tcp.local'),
-      )) {
-        await for (SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
-          ResourceRecordQuery.service(ptr.domainName),
-        )) {
-          setState(() {
-            esps.clear();
-          });
+    // Inicia a varredura de redes Wi-Fi
+    final networks = await WiFiScan.instance.getScannedResults();
 
-          String ipAddress = "Desconhecido";
-          String friendlyName = "Desconhecido";
-          bool isAdded = false;
+    // Filtra os ESP32s pelo prefixo do SSID (ex: "ESP32_SETUP")
+    final esp32Networks = networks.where((network) => network.ssid.startsWith("ESP32_")).toList();
 
-          final prefs = await SharedPreferences.getInstance();
-          final espList = prefs.getStringList("esp") ?? [];
+    // Exibe os ESP32s encontrados
+    if (esp32Networks.isNotEmpty) {
+      print("ESP32s no modo AP encontrados:");
+      for (var net in esp32Networks) {
+        print("SSID: ${net.ssid}, Sinal: ${net.level}dBm");
+      }
+    } else {
+      print("Nenhum ESP32 no modo AP encontrado.");
+    }
+  }
 
-          await for (IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
-            ResourceRecordQuery.addressIPv4(srv.target),
-          )) {
-            ipAddress = ip.address.address;
-          }
+  // Future<void> discoverDevices() async {
+  //   setState(() {
+  //     isScanning = true;
+  //   });
 
-          if (espList.contains(ipAddress)) {
-            isAdded = true;
-          }
+  //   final MDnsClient client = MDnsClient();
+  //   await client.start();
 
-          await for (TxtResourceRecord txt in client.lookup<TxtResourceRecord>(
-            ResourceRecordQuery.text(ptr.domainName),
-          )) {
-            for (var entry in txt.text.split("\n")) {
-              if (entry.startsWith("name=")) {
-                friendlyName = entry.substring(5);
-              }
-            }
-          }
+  //   try {
+  //     await for (PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
+  //       ResourceRecordQuery.serverPointer('_http._tcp.local'),
+  //     )) {
+  //       await for (SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
+  //         ResourceRecordQuery.service(ptr.domainName),
+  //       )) {
+  //         setState(() {
+  //           esps.clear();
+  //         });
 
-          final deviceInfo = {"name": friendlyName, "ip": ipAddress, "port": srv.port.toString(), "isAdded": isAdded.toString()};
+  //         String ipAddress = "Desconhecido";
+  //         String friendlyName = "Desconhecido";
+  //         bool isAdded = false;
 
-          if (!esps.any((d) => d["ip"] == ipAddress)) {
+  //         final prefs = await SharedPreferences.getInstance();
+  //         final espList = prefs.getStringList("esp") ?? [];
+
+  //         await for (IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
+  //           ResourceRecordQuery.addressIPv4(srv.target),
+  //         )) {
+  //           ipAddress = ip.address.address;
+  //         }
+
+  //         if (espList.contains(ipAddress)) {
+  //           isAdded = true;
+  //         }
+
+  //         await for (TxtResourceRecord txt in client.lookup<TxtResourceRecord>(
+  //           ResourceRecordQuery.text(ptr.domainName),
+  //         )) {
+  //           for (var entry in txt.text.split("\n")) {
+  //             if (entry.startsWith("name=")) {
+  //               friendlyName = entry.substring(5);
+  //             }
+  //           }
+  //         }
+
+  //         final deviceInfo = {"name": friendlyName, "ip": ipAddress, "port": srv.port.toString(), "isAdded": isAdded.toString()};
+
+  //         if (!esps.any((d) => d["ip"] == ipAddress)) {
+  //           setState(() {
+  //             esps.add(deviceInfo);
+  //           });
+  //         }
+  //       }
+  //     }
+  //   } catch (e) {
+  //     print("Erro ao buscar dispositivos: $e");
+  //   } finally {
+  //     client.stop();
+  //     setState(() {
+  //       isScanning = false;
+  //     });
+  //   }
+  // }
+
+  String _getType(String ssid) {
+    if (ssid.contains("PLUG")) {
+      return "plug";
+    } else if (ssid.contains("LIGHT")) {
+      return "light";
+    } else if (ssid.contains("SWITCH")) {
+      return "switch";
+    }
+
+    return "unknown";
+  }
+
+  String _getName(String ssid) {
+    if (ssid.contains("PLUG")) {
+      return "Smart Plug";
+    } else if (ssid.contains("LIGHT")) {
+      return "Smart Light";
+    } else if (ssid.contains("SWITCH")) {
+      return "Smart Switch";
+    }
+
+    return "Unknown";
+  }
+
+  Icon _getIcon(String type) {
+    switch (type) {
+      case "plug":
+        return Icon(Icons.power);
+      case "light":
+        return Icon(Icons.lightbulb);
+      case "switch":
+        return Icon(Icons.switch_right);
+      default:
+        return Icon(Icons.device_hub);
+    }
+  }
+
+  void discoverDevices() async {
+    FlutterBluePlus.startScan(timeout: Duration(seconds: 5));
+    FlutterBluePlus.scanResults.listen((results) {
+      setState(() {
+        esps.clear();
+        isScanning = true;
+      });
+
+      for (ScanResult result in results) {
+        if (result.device.platformName.isNotEmpty)
+          print(result.device.platformName);
+        if (result.device.platformName.contains("BARREL_SETUP")) {
+          final type = _getType(result.device.platformName);
+          final name = _getName(result.device.platformName);
+          final ip = result.device.remoteId.toString();
+          final port = result.advertisementData.txPowerLevel.toString();
+          final isAdded = false;
+
+          final deviceInfo = {"type": type, "name": name, "ip": ip, "port": port, "isAdded": isAdded.toString()};
+
+          if (!esps.any((d) => d["ip"] == ip)) {
             setState(() {
               esps.add(deviceInfo);
             });
           }
         }
       }
-    } catch (e) {
-      print("Erro ao buscar dispositivos: $e");
-    } finally {
-      client.stop();
+
       setState(() {
         isScanning = false;
       });
-    }
+    });
   }
 
   void showMessage(String title, String message) {
@@ -110,6 +218,7 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   }
 
   void onConnectEsp(Map<String, String> esp) async {
+    return;
     setState(() {
       isAdding = true;
     });
@@ -208,31 +317,33 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   }
 
   void deleteAllData() async {
-    showDialog(context: context, builder: (context) {
-      return AlertDialog(
-        title: Text("Atenção"),
-        content: Text("Tem certeza que deseja apagar todos os dados?"),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-            },
-            child: Text("Cancelar"),
-          ),
-          TextButton(
-            onPressed: () async {
-              final prefs = await SharedPreferences.getInstance();
-              await prefs.clear();
+    showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            title: Text("Atenção"),
+            content: Text("Tem certeza que deseja apagar todos os dados?"),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+                },
+                child: Text("Cancelar"),
+              ),
+              TextButton(
+                onPressed: () async {
+                  final prefs = await SharedPreferences.getInstance();
+                  await prefs.clear();
 
-              discoverDevices();
+                  discoverDevices();
 
-              Navigator.pop(context);
-            },
-            child: Text("Apagar"),
-          ),
-        ],
-      );
-    });
+                  Navigator.pop(context);
+                },
+                child: Text("Apagar"),
+              ),
+            ],
+          );
+        });
   }
 
   @override
@@ -256,7 +367,7 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
                 final esp = esps[index];
                 return ListTile(
                   enabled: !isScanning && !isAdding,
-                  leading: Icon(Icons.device_hub),
+                  leading: _getIcon(esp["type"] ?? "unknown"),
                   title: Text(esp["name"] ?? "Desconhecido"),
                   subtitle: Text("IP: ${esp["ip"]}, Porta: ${esp["port"]}"),
                   trailing: Opacity(
