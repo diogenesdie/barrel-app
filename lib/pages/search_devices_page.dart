@@ -1,15 +1,11 @@
-import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:multicast_dns/multicast_dns.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
-import 'package:wifi_scan/wifi_scan.dart';
+import 'package:wifi_info_flutter/wifi_info_flutter.dart';
 
 class SearchDevicesPage extends StatefulWidget {
   const SearchDevicesPage({super.key});
@@ -27,38 +23,12 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   @override
   void initState() {
     super.initState();
-    scanEsp32AccessPoints();
-    discoverDevices();
+    // discoverDevices();
   }
 
   @override
   void dispose() {
     super.dispose();
-  }
-
-  Future<void> scanEsp32AccessPoints() async {
-    // Solicita permissão de localização (necessária para escanear Wi-Fi)
-    var status = await Permission.location.request();
-    if (!status.isGranted) {
-      print("Permissão de localização negada.");
-      return;
-    }
-
-    // Inicia a varredura de redes Wi-Fi
-    final networks = await WiFiScan.instance.getScannedResults();
-
-    // Filtra os ESP32s pelo prefixo do SSID (ex: "ESP32_SETUP")
-    final esp32Networks = networks.where((network) => network.ssid.startsWith("ESP32_")).toList();
-
-    // Exibe os ESP32s encontrados
-    if (esp32Networks.isNotEmpty) {
-      print("ESP32s no modo AP encontrados:");
-      for (var net in esp32Networks) {
-        print("SSID: ${net.ssid}, Sinal: ${net.level}dBm");
-      }
-    } else {
-      print("Nenhum ESP32 no modo AP encontrado.");
-    }
   }
 
   // Future<void> discoverDevices() async {
@@ -172,8 +142,6 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       });
 
       for (ScanResult result in results) {
-        if (result.device.platformName.isNotEmpty)
-          print(result.device.platformName);
         if (result.device.platformName.contains("BARREL_SETUP")) {
           final type = _getType(result.device.platformName);
           final name = _getName(result.device.platformName);

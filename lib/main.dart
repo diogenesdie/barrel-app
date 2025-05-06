@@ -60,6 +60,22 @@ class SmartHomeApp extends StatelessWidget {
               ),
             ),
           ),
+          // set only down border with color primaryLight
+          inputDecorationTheme: InputDecorationTheme(
+            focusedBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Color(0xFFB8860B)),
+            ),
+            enabledBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.grey[400]!),
+            ),
+            errorBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red),
+            ),
+            focusedErrorBorder: UnderlineInputBorder(
+              borderSide: BorderSide(color: Colors.red),
+            ),
+            labelStyle: TextStyle(color: Colors.grey[400]),
+          ),
           listTileTheme: ListTileThemeData(
             tileColor: Colors.white,
             leadingAndTrailingTextStyle: const TextStyle(color: Colors.black),

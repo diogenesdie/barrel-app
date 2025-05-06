@@ -1,31 +1,31 @@
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 LinearGradient getGradient() {
   int hour = DateTime.now().hour;
 
   if (hour >= 18) {
-    // Noite (após 18h)
     return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.fromARGB(224, 3, 46, 54), // rgb(3 46 54 / 88%)
-        Color.fromARGB(255, 0, 20, 30), // rgb(0 20 30)
+        Color.fromARGB(224, 3, 46, 54),
+        Color.fromARGB(255, 0, 20, 30),
       ],
-      transform: GradientRotation(285 * 3.1415927 / 180), // Rotação de 285 graus
+      transform: GradientRotation(285 * 3.1415927 / 180),
     );
   } else {
-    // Dia
     return LinearGradient(
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
       colors: [
-        Color.fromRGBO(0, 180, 219, 1), // rgb(0, 180, 219)
-        Color.fromRGBO(0, 131, 176, 1), // rgb(0, 131, 176)
+        Color.fromRGBO(0, 180, 219, 1),
+        Color.fromRGBO(0, 131, 176, 1),
       ],
-      transform: GradientRotation(75 * 3.1415927 / 180), // Rotação de 75 graus
+      transform: GradientRotation(75 * 3.1415927 / 180),
     );
   }
 }
@@ -73,16 +73,23 @@ String getWeatherIconByCode(int weathercode, bool isDay) {
   }
 }
 
-
 Future<IWeather> getWeather(double latitude, double longitude, int currentHour) async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  String? cachedData = prefs.getString('weather_data');
+  int? cacheTimestamp = prefs.getInt('weather_timestamp');
+
+  int cacheDuration = 86400000 - (DateTime.now().millisecondsSinceEpoch % 86400000);
+  int currentTime = DateTime.now().millisecondsSinceEpoch;
+
+  if (cachedData != null && cacheTimestamp != null && (currentTime - cacheTimestamp < cacheDuration)) {
+    final jsonMap = jsonDecode(cachedData);
+    final weather = IWeather.fromJson(jsonMap);
+    return weather;
+  }
+
   final weatherUrl = Uri.parse("https://api.open-meteo.com/v1/forecast");
-  final weatherResponse = await http.get(weatherUrl.replace(queryParameters: {
-    "latitude": latitude.toString(),
-    "longitude": longitude.toString(),
-    "hourly": "temperature_2m,weathercode",
-    "daily": "temperature_2m_min,temperature_2m_max,weathercode",
-    "timezone": "auto"
-  }));
+  final weatherResponse =
+      await http.get(weatherUrl.replace(queryParameters: {"latitude": latitude.toString(), "longitude": longitude.toString(), "hourly": "temperature_2m,weathercode", "daily": "temperature_2m_min,temperature_2m_max,weathercode", "timezone": "auto"}));
 
   if (weatherResponse.statusCode != 200) {
     throw jsonDecode(weatherResponse.body) as IResponseError;
@@ -90,22 +97,24 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
 
   final weatherData = jsonDecode(weatherResponse.body);
   final response = IWeatherResponse(
-    time: List<String>.from(weatherData["hourly"]["time"]),
-    temperature2m: List<double>.from(weatherData["hourly"]["temperature_2m"]),
-    temperature2mMin: weatherData["daily"]["temperature_2m_min"][0],
-    temperature2mMax: weatherData["daily"]["temperature_2m_max"][0],
-    weathercode: List<int>.from(weatherData["hourly"]["weathercode"]),
-    next3Days: List.generate(3, (index) {
-      return DailyWeather(
-        temperature2mMin: weatherData["daily"]["temperature_2m_min"][index + 1],
-        temperature2mMax: weatherData["daily"]["temperature_2m_max"][index + 1],
-        weathercode: weatherData["daily"]["weathercode"][index + 1],
-        time: weatherData["daily"]["time"][index + 1],
-      );
-    })
-  );
+      time: List<String>.from(weatherData["hourly"]["time"]),
+      temperature2m: List<double>.from(weatherData["hourly"]["temperature_2m"]),
+      temperature2mMin: weatherData["daily"]["temperature_2m_min"][0],
+      temperature2mMax: weatherData["daily"]["temperature_2m_max"][0],
+      weathercode: List<int>.from(weatherData["hourly"]["weathercode"]),
+      next3Days: List.generate(3, (index) {
+        return DailyWeather(
+          temperature2mMin: weatherData["daily"]["temperature_2m_min"][index + 1],
+          temperature2mMax: weatherData["daily"]["temperature_2m_max"][index + 1],
+          weathercode: weatherData["daily"]["weathercode"][index + 1],
+          time: weatherData["daily"]["time"][index + 1],
+        );
+      }));
 
   final weather = getWeatherData(currentHour, response);
+
+  prefs.setString('weather_data', jsonEncode(weather.toJson()));
+  prefs.setInt('weather_timestamp', currentTime);
 
   return weather;
 }
@@ -164,6 +173,40 @@ String getDayOfWeek(int day) {
   }
 }
 
+Future<Map<String, double>?> getCoords() async {
+  SharedPreferences prefs = await SharedPreferences.getInstance();
+  double? latitude = prefs.getDouble('latitude');
+  double? longitude = prefs.getDouble('longitude');
+  int? cacheTimestamp = prefs.getInt('coords_timestamp');
+
+  int currentTime = DateTime.now().millisecondsSinceEpoch;
+  int cacheDuration = 1800000;
+
+  if (latitude != null && longitude != null && cacheTimestamp != null && (currentTime - cacheTimestamp < cacheDuration)) {
+    return {
+      "latitude": latitude,
+      "longitude": longitude,
+    };
+  }
+
+  LocationPermission permission = await Geolocator.requestPermission();
+
+  if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+    return null;
+  }
+
+  Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
+
+  prefs.setDouble('latitude', position.latitude);
+  prefs.setDouble('longitude', position.longitude);
+  prefs.setInt('coords_timestamp', currentTime);
+
+  return {
+    "latitude": position.latitude,
+    "longitude": position.longitude,
+  };
+}
+
 class IWeather {
   final String time;
   final double temperature;
@@ -186,6 +229,36 @@ class IWeather {
     required this.city,
     required this.next3Days,
   });
+
+  // Método para converter para JSON
+  Map<String, dynamic> toJson() {
+    return {
+      'time': time,
+      'temperature': temperature,
+      'temperatureMin': temperatureMin,
+      'temperatureMax': temperatureMax,
+      'weathercode': weathercode,
+      'day': day,
+      'icon': icon,
+      'city': city,
+      'next3Days': next3Days.map((e) => e.toJson()).toList(),
+    };
+  }
+
+  // Método para criar a partir de JSON
+  factory IWeather.fromJson(Map<String, dynamic> json) {
+    return IWeather(
+      time: json['time'],
+      temperature: (json['temperature'] as num).toDouble(),
+      temperatureMin: (json['temperatureMin'] as num).toDouble(),
+      temperatureMax: (json['temperatureMax'] as num).toDouble(),
+      weathercode: json['weathercode'],
+      day: json['day'],
+      icon: json['icon'],
+      city: json['city'],
+      next3Days: (json['next3Days'] as List).map((e) => DailyWeather.fromJson(e)).toList(),
+    );
+  }
 }
 
 class IWeatherResponse {
@@ -218,6 +291,20 @@ class DailyWeather {
     required this.weathercode,
     required this.time,
   });
+
+  Map<String, dynamic> toJson() => {
+        "temperature2mMin": temperature2mMin,
+        "temperature2mMax": temperature2mMax,
+        "weathercode": weathercode,
+        "time": time,
+      };
+
+  factory DailyWeather.fromJson(Map<String, dynamic> json) => DailyWeather(
+        temperature2mMin: json["temperature2mMin"],
+        temperature2mMax: json["temperature2mMax"],
+        weathercode: json["weathercode"],
+        time: json["time"],
+      );
 }
 
 class IResponseError implements Exception {

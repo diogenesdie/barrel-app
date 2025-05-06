@@ -4,6 +4,7 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
@@ -11,6 +12,7 @@ import 'package:smart_home/utils/devices_utils.dart';
 import 'dart:async';
 
 import 'package:smart_home/utils/weather_utils.dart';
+import 'package:wifi_info_flutter/wifi_info_flutter.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
 const String characteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
@@ -31,26 +33,60 @@ class _YourHomePageState extends State<YourHomePage> {
   bool isConnecting = false;
   BluetoothDevice? connectedDevice;
   BluetoothCharacteristic? wifiCharacteristic;
+  String? _wifiSSID;
+  String? _wfiiError;
 
   @override
   void initState() {
     super.initState();
-    _loadDevices();
     _loadWeather();
-    _discoverDevices();
+    _loadDevices();
+    // _discoverDevicesWait();
+  }
+
+  void _discoverDevicesWait() async {
+    final devices = await _discoverDevicesReturn();
+    setState(() {
+      esps.clear();
+      esps.addAll(devices);
+    });
+  }
+
+  Future<void> _getWifiSSID() async {
+    try {
+      var status = await Permission.location.status;
+
+      if (!status.isGranted) {
+        status = await Permission.location.request();
+      }
+
+      if (status.isGranted) {
+        String? ssid = await WifiInfo().getWifiName();
+        setState(() {
+          _wifiSSID = ssid;
+          _wfiiError = "Você não está conectado no WiFi";
+        });
+      } else {
+        setState(() {
+          _wfiiError = "Estamos sem permissão para listar seu WiFi";
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _wifiSSID = "Ocorreu um erro ao buscar sua rede WiFi: $e";
+      });
+    }
   }
 
   void _loadWeather() async {
-    LocationPermission permission = await Geolocator.requestPermission();
+    Map<String, double>? coords = await getCoords();
 
-    if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+    if (coords == null) {
       return;
     }
 
-    Position position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high);
-
     var currentHour = DateTime.now().hour;
-    var weatherTemp = await getWeather(position.latitude, position.longitude, currentHour);
+    var weatherTemp = await getWeather(coords['latitude']!, coords['longitude']!, currentHour);
     setState(() {
       weather = weatherTemp;
     });
@@ -91,6 +127,37 @@ class _YourHomePageState extends State<YourHomePage> {
         isScanning = false;
       });
     });
+  }
+
+  Future<List<Map<String, dynamic>>> _discoverDevicesReturn() async {
+    List<Map<String, dynamic>> foundDevices = [];
+
+    // Inicia a varredura
+    FlutterBluePlus.startScan(timeout: Duration(seconds: 5));
+
+    // Aguarda o término da varredura
+    await Future.delayed(Duration(seconds: 5));
+
+    // Obtém os resultados da varredura
+    List<ScanResult> results = await FlutterBluePlus.scanResults.first;
+
+    for (ScanResult result in results) {
+      if (result.device.platformName.contains("BARREL_SETUP")) {
+        final type = getDeviceType(result.device.platformName);
+        final name = getDeviceName(result.device.platformName);
+        final ip = result.device.remoteId.toString();
+        final port = result.advertisementData.txPowerLevel.toString();
+        final isAdded = false;
+
+        final deviceInfo = {"type": type, "name": name, "ip": ip, "port": port, "isAdded": isAdded.toString(), "device": result.device};
+
+        if (!foundDevices.any((d) => d["ip"] == ip)) {
+          foundDevices.add(deviceInfo);
+        }
+      }
+    }
+
+    return foundDevices;
   }
 
   Future<void> _loadDevices() async {
@@ -272,7 +339,7 @@ class _YourHomePageState extends State<YourHomePage> {
                                 ),
                                 const SizedBox(width: 28),
                               ],
-                            )
+                            ),
                     ],
                   ),
                 ),
@@ -297,108 +364,217 @@ class _YourHomePageState extends State<YourHomePage> {
                       ),
                       side: BorderSide(width: 2, color: Theme.of(context).primaryColorLight),
                     ),
-                    onPressed: () {
+                    onPressed: () async {
                       showModalBottomSheet(
                         context: context,
+                        isScrollControlled: true, // Permite que o modal suba com o teclado
                         shape: const RoundedRectangleBorder(
                           borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
                         ),
                         builder: (context) {
-                          return StatefulBuilder(
-                            builder: (context, setModalState) {
-                              if (esps.isEmpty) {
-                                return const Center(child: CircularProgressIndicator());
-                              }
-                              return Container(
-                                padding: const EdgeInsets.all(16.0),
-                                height: 600,
-                                width: double.infinity,
-                                child: Column(
-                                  children: [
-                                    Padding(
-                                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                      child: Row(
-                                        children: [
-                                          Icon(Icons.search, color: Theme.of(context).primaryColorLight),
-                                          const SizedBox(width: 8),
-                                          Text(
-                                            "Dispositivos encontrados",
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.grey[800],
+                          final PageController _pageController = PageController();
+                          TextEditingController ssidController = TextEditingController();
+                          TextEditingController passwordController = TextEditingController();
+                          TextEditingController accessKeyController = TextEditingController();
+
+                          void _onItemTapped(int index) {
+                            _pageController.animateToPage(
+                              index,
+                              duration: Duration(milliseconds: 300),
+                              curve: Curves.easeInOutCubic,
+                            );
+                          }
+
+                          return AnimatedPadding(
+                            duration: const Duration(milliseconds: 200),
+                            padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
+                            child: SizedBox(
+                              height: 400,
+                              child: PageView(
+                                controller: _pageController,
+                                children: [
+                                  FutureBuilder<List>(
+                                    future: _discoverDevicesReturn(), // Chama a função que retorna a lista de dispositivos
+                                    builder: (context, snapshot) {
+                                      if (snapshot.connectionState == ConnectionState.waiting) {
+                                        return const Center(child: CircularProgressIndicator());
+                                      }
+                                      if (snapshot.hasError) {
+                                        return Center(child: Text("Erro ao buscar dispositivos"));
+                                      }
+                                      final esps = snapshot.data ?? [];
+
+                                      return Container(
+                                        padding: const EdgeInsets.all(16.0),
+                                        width: double.infinity,
+                                        child: Column(
+                                          children: [
+                                            Padding(
+                                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                              child: Row(
+                                                children: [
+                                                  Icon(Icons.search, color: Theme.of(context).primaryColorLight),
+                                                  const SizedBox(width: 8),
+                                                  Text(
+                                                    "Dispositivos encontrados",
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.grey[800],
+                                                    ),
+                                                  ),
+                                                  IconButton(
+                                                      onPressed: () {
+                                                        _onItemTapped(2);
+                                                      },
+                                                      icon: Icon(Icons.chevron_right))
+                                                ],
+                                              ),
+                                            ),
+                                            const Divider(),
+                                            Expanded(
+                                              child: esps.isEmpty
+                                                  ? const Center(child: Text("Nenhum dispositivo encontrado"))
+                                                  : ListView.builder(
+                                                      itemCount: esps.length,
+                                                      itemBuilder: (context, index) {
+                                                        final esp = esps[index];
+                                                        return ListTile(
+                                                          leading: Container(
+                                                            width: 40,
+                                                            height: 40,
+                                                            decoration: BoxDecoration(
+                                                              shape: BoxShape.circle,
+                                                              color: Theme.of(context).primaryColorLight,
+                                                            ),
+                                                            child: getDeviceIcon(esp["type"] ?? "unknown"),
+                                                          ),
+                                                          title: Text(esp["name"] ?? "Desconhecido"),
+                                                          subtitle: Text(getDeviceSubtitle(esp["type"] ?? "unknown")),
+                                                          trailing: ElevatedButton.icon(
+                                                            style: ElevatedButton.styleFrom(
+                                                              backgroundColor: Theme.of(context).primaryColorLight,
+                                                            ),
+                                                            icon: esp["isAdded"] == "true" ? const FaIcon(FontAwesomeIcons.linkSlash) : const FaIcon(FontAwesomeIcons.link),
+                                                            onPressed: () async {
+                                                              if (esp["isAdded"] == "true") {
+                                                                // onDisconnectEsp(esp);
+                                                              } else {
+                                                                await connectToDevice(esp["device"]);
+                                                                esp["device"].disconnect();
+                                                              }
+                                                            },
+                                                            label: Text(esp["isAdded"] == "true" ? "Desconectar" : "Conectar"),
+                                                          ),
+                                                        );
+                                                      },
+                                                    ),
+                                            ),
+                                          ],
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.all(16.0),
+                                    height: 600,
+                                    width: double.infinity,
+                                    child: Column(
+                                      children: [
+                                        Padding(
+                                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                          child: Row(
+                                            children: [
+                                              IconButton(
+                                                onPressed: () {
+                                                  _onItemTapped(2);
+                                                },
+                                                icon: Icon(Icons.chevron_left),
+                                              ),
+                                              Container(
+                                                width: 40,
+                                                height: 40,
+                                                decoration: BoxDecoration(
+                                                  shape: BoxShape.circle,
+                                                  color: Theme.of(context).primaryColorLight,
+                                                ),
+                                                child: getDeviceIcon("plug"),
+                                              ),
+                                              const SizedBox(width: 8),
+                                              Column(
+                                                mainAxisAlignment: MainAxisAlignment.start,
+                                                crossAxisAlignment: CrossAxisAlignment.start,
+                                                children: [
+                                                  Text(
+                                                    "Barrel Plug",
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: Colors.grey[800],
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    "Tomada inteligente",
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      color: Colors.grey[600],
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        const Divider(),
+                                        TextField(
+                                          controller: ssidController,
+                                          decoration: const InputDecoration(labelText: "SSID (Nome da Rede Wi-Fi)"),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextField(
+                                          controller: passwordController,
+                                          obscureText: true,
+                                          decoration: const InputDecoration(labelText: "Senha do Wi-Fi"),
+                                        ),
+                                        const SizedBox(height: 12),
+                                        TextField(
+                                          controller: accessKeyController,
+                                          obscureText: true,
+                                          keyboardType: TextInputType.number,
+                                          maxLength: 6,
+                                          decoration: const InputDecoration(labelText: "Chave de Acesso (6 dígitos)"),
+                                        ),
+                                        const SizedBox(height: 24),
+                                        Container(
+                                          width: double.infinity,
+                                          height: 50,
+                                          decoration: BoxDecoration(
+                                            gradient: LinearGradient(
+                                              colors: _getButtonColor("on"),
+                                              begin: Alignment.topLeft,
+                                              end: Alignment.bottomRight,
+                                            ),
+                                            borderRadius: BorderRadius.circular(12),
+                                          ),
+                                          child: ElevatedButton.icon(
+                                            onPressed: () {
+                                              Navigator.pop(context);
+                                            },
+                                            label: const Text("Configurar"),
+                                            icon: const FaIcon(FontAwesomeIcons.gear),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.transparent,
+                                              shadowColor: Colors.transparent,
+                                              padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 15.0),
                                             ),
                                           ),
-                                        ],
-                                      ),
+                                        ),
+                                      ],
                                     ),
-                                    const Divider(),
-                                    Expanded(
-                                      child: ListView.builder(
-                                        itemCount: esps.length,
-                                        itemBuilder: (context, index) {
-                                          final esp = esps[index];
-                                          return ListTile(
-                                            enabled: !isScanning && !isAdding,
-                                            leading: Container(
-                                              width: 40,
-                                              height: 40,
-                                              decoration: BoxDecoration(
-                                                shape: BoxShape.circle,
-                                                color: Theme.of(context).primaryColorLight,
-                                              ),
-                                              child: getDeviceIcon(esp["type"] ?? "unknown"),
-                                            ),
-                                            title: Text(esp["name"] ?? "Desconhecido"),
-                                            subtitle: Text(
-                                              getDeviceSubtitle(esp["type"] ?? "unknown"),
-                                            ),
-                                            trailing: Opacity(
-                                              opacity: isScanning || isAdding ? 0.5 : 1,
-                                              child: ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Theme.of(context).primaryColorLight,
-                                                ),
-                                                icon: isConnecting
-                                                    ? const SizedBox(
-                                                        width: 16,
-                                                        height: 16,
-                                                        child: CircularProgressIndicator(
-                                                          color: Colors.white,
-                                                          strokeWidth: 2,
-                                                        ),
-                                                      )
-                                                    : (esp["isAdded"] == "true" ? const FaIcon(FontAwesomeIcons.linkSlash) : const FaIcon(FontAwesomeIcons.link)),
-                                                onPressed: isScanning || isAdding
-                                                    ? null
-                                                    : () async {
-                                                        if (esp["isAdded"] == "true") {
-                                                          // onDisconnectEsp(esp);
-                                                        } else {
-                                                          setModalState(() {
-                                                            isConnecting = true;
-                                                          });
-                                                          await connectToDevice(esp["device"]);
-                                                          setModalState(() {
-                                                            isConnecting = false;
-                                                          });
-
-                                                          esp["device"].disconnect();
-                                                        }
-                                                      },
-                                                label: Text(
-                                                  esp["isAdded"] == "true" ? "Desconectar" : "Conectar",
-                                                ),
-                                              ),
-                                            ),
-                                          );
-                                        },
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              );
-                            },
+                                  )
+                                ],
+                              ),
+                            ),
                           );
                         },
                       );
