@@ -1,16 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/components/gradient_icon.dart';
 import 'package:smart_home/core/constants.dart';
-import 'package:smart_home/pages/ble_wifi_setup_page.dart';
 import 'package:smart_home/pages/perfil_page.dart';
 import 'package:smart_home/pages/search_devices_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
-import 'package:smart_home/providers/voice_command_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:async';
 
