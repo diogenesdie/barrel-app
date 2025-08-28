@@ -12,7 +12,6 @@ import 'package:smart_home/pages/search_devices_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
 import 'package:smart_home/providers/voice_command_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
-import 'package:uni_links/uni_links.dart';
 import 'dart:async';
 
 class HomePage extends StatefulWidget {
@@ -33,7 +32,6 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadDevices();
-    _handleDeepLinks();
 
     _pages = [const YourHomePage(), const SearchDevicesPage(), const PerfilPage()];
   }
@@ -42,15 +40,6 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _speech.stop();
     super.dispose();
-  }
-
-  void _handleDeepLinks() async {
-    uriLinkStream.listen((Uri? uri) {
-      if (uri != null) {
-        String command = uri.pathSegments.isNotEmpty ? uri.pathSegments.first : "";
-        _processCommand(command);
-      }
-    });
   }
 
   void _processCommand(String phrase) {

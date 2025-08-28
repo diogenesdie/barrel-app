@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_home/pages/home_page.dart';
 import 'package:smart_home/providers/voice_command_provider.dart';
+import 'package:smart_home/pages/auth_page.dart';
 
 void main() {
-  runApp(SmartHomeApp());
+  runApp(const SmartHomeApp());
 }
 
 class SmartHomeApp extends StatelessWidget {
@@ -16,24 +17,36 @@ class SmartHomeApp extends StatelessWidget {
       create: (_) => VoiceCommandProvider(),
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        home: HomePage(),
+        initialRoute: '/',
+        routes: {
+          '/': (_) => const AuthPage(),
+          '/home': (_) => const HomePage(),
+        },
         theme: ThemeData(
+          // Corrige o roxo dos botões no Material 3
+          colorScheme: ColorScheme.fromSeed(
+            seedColor: Colors.brown,
+            brightness: Brightness.light,
+          ),
+          useMaterial3: true,
+
           primarySwatch: Colors.brown,
           primaryColor: Colors.brown,
-          primaryColorLight: Color(0xFFB8860B),
+          primaryColorLight: const Color(0xFFB8860B),
+
           dialogBackgroundColor: Colors.grey[200],
-          drawerTheme: DrawerThemeData(
+          drawerTheme: const DrawerThemeData(
             backgroundColor: Colors.white,
             elevation: 5,
-            shadowColor: const Color.fromARGB(255, 238, 238, 238),
+            shadowColor: Color.fromARGB(255, 238, 238, 238),
           ),
-          appBarTheme: AppBarTheme(
+          appBarTheme: const AppBarTheme(
             backgroundColor: Colors.brown,
             titleTextStyle: TextStyle(color: Colors.white, fontSize: 20),
             iconTheme: IconThemeData(color: Colors.white),
             actionsIconTheme: IconThemeData(color: Colors.white),
           ),
-          progressIndicatorTheme: ProgressIndicatorThemeData(
+          progressIndicatorTheme: const ProgressIndicatorThemeData(
             color: Color(0xFFB8860B),
           ),
           bottomSheetTheme: BottomSheetThemeData(
@@ -52,7 +65,6 @@ class SmartHomeApp extends StatelessWidget {
               padding: MaterialStateProperty.all<EdgeInsetsGeometry>(
                 const EdgeInsets.all(8),
               ),
-              //putple background color with white icon coplor
               shape: MaterialStateProperty.all<RoundedRectangleBorder>(
                 RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(30),
@@ -60,18 +72,17 @@ class SmartHomeApp extends StatelessWidget {
               ),
             ),
           ),
-          // set only down border with color primaryLight
           inputDecorationTheme: InputDecorationTheme(
-            focusedBorder: UnderlineInputBorder(
+            focusedBorder: const UnderlineInputBorder(
               borderSide: BorderSide(color: Color(0xFFB8860B)),
             ),
             enabledBorder: UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.grey[400]!),
             ),
-            errorBorder: UnderlineInputBorder(
+            errorBorder: const UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.red),
             ),
-            focusedErrorBorder: UnderlineInputBorder(
+            focusedErrorBorder: const UnderlineInputBorder(
               borderSide: BorderSide(color: Colors.red),
             ),
             labelStyle: TextStyle(color: Colors.grey[400]),
@@ -129,7 +140,7 @@ class SmartHomeApp extends StatelessWidget {
               return Colors.grey[300];
             }),
           ),
-          floatingActionButtonTheme: FloatingActionButtonThemeData(
+          floatingActionButtonTheme: const FloatingActionButtonThemeData(
             backgroundColor: Colors.brown,
             foregroundColor: Colors.white,
           ),
@@ -142,7 +153,6 @@ class SmartHomeApp extends StatelessWidget {
               ),
             ),
           ),
-          useMaterial3: true,
         ),
       ),
     );

@@ -12,7 +12,7 @@ import 'package:smart_home/utils/devices_utils.dart';
 import 'dart:async';
 
 import 'package:smart_home/utils/weather_utils.dart';
-import 'package:wifi_info_flutter/wifi_info_flutter.dart';
+import 'package:network_info_plus/network_info_plus.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
 const String characteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
@@ -54,26 +54,28 @@ class _YourHomePageState extends State<YourHomePage> {
 
   Future<void> _getWifiSSID() async {
     try {
-      var status = await Permission.location.status;
-
+      // Android precisa de localização para ler SSID/BSSID
+      var status = await Permission.locationWhenInUse.status;
       if (!status.isGranted) {
-        status = await Permission.location.request();
+        status = await Permission.locationWhenInUse.request();
       }
 
       if (status.isGranted) {
-        String? ssid = await WifiInfo().getWifiName();
+        final info = NetworkInfo();
+        final ssid = await info.getWifiName(); // SSID pode vir com aspas em alguns devices
         setState(() {
           _wifiSSID = ssid;
-          _wfiiError = "Você não está conectado no WiFi";
+          _wfiiError = (ssid == null || ssid.isEmpty) ? "Você não está conectado no Wi-Fi" : null;
         });
       } else {
         setState(() {
-          _wfiiError = "Estamos sem permissão para listar seu WiFi";
+          _wfiiError = "Estamos sem permissão para listar seu Wi-Fi";
         });
       }
     } catch (e) {
       setState(() {
-        _wifiSSID = "Ocorreu um erro ao buscar sua rede WiFi: $e";
+        _wifiSSID = null;
+        _wfiiError = "Ocorreu um erro ao buscar sua rede Wi-Fi: $e";
       });
     }
   }
@@ -262,17 +264,13 @@ class _YourHomePageState extends State<YourHomePage> {
   void sendWifiCredentials() async {
     if (wifiCharacteristic == null) return;
 
-    String ssid = '';
-    String password = '';
-    String credentials = "$ssid,$password";
+    final ssid = _wifiSSID ?? '';
+    final password = ''; // preencha a partir do seu controller
+    final credentials = "$ssid,$password";
 
     await wifiCharacteristic!.write(credentials.codeUnits);
-    print("Sent: $credentials");
-
-    // Ler resposta do ESP32
-    List<int> response = await wifiCharacteristic!.read();
-    String responseStr = String.fromCharCodes(response);
-    print("ESP32 Response: $responseStr");
+    final response = await wifiCharacteristic!.read();
+    final responseStr = String.fromCharCodes(response);
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text("ESP32 Response: $responseStr")),
