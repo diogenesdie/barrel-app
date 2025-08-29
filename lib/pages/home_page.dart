@@ -6,7 +6,6 @@ import 'package:smart_home/components/gradient_icon.dart';
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/pages/devices_page.dart';
 import 'package:smart_home/pages/perfil_page.dart';
-import 'package:smart_home/pages/search_devices_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'dart:async';
@@ -39,55 +38,55 @@ class _HomePageState extends State<HomePage> {
     super.dispose();
   }
 
-  void _processCommand(String phrase) {
-    print('Comando recebido: $phrase');
+  // void _processCommand(String phrase) {
+  //   print('Comando recebido: $phrase');
 
-    String command = phrase;
-    if (phrase.contains('eva')) {
-      command = phrase.split('eva').last.trim().toLowerCase();
-    }
+  //   String command = phrase;
+  //   if (phrase.contains('eva')) {
+  //     command = phrase.split('eva').last.trim().toLowerCase();
+  //   }
 
-    // Mapear comandos para ações
-    Map<String, List<String>> commandMapping = {
-      'ligar': ['on', 'liga', 'acender', 'abre'],
-      'desligar': ['off', 'desliga', 'apagar', 'fecha']
-    };
+  //   // Mapear comandos para ações
+  //   Map<String, List<String>> commandMapping = {
+  //     'ligar': ['on', 'liga', 'acender', 'abre'],
+  //     'desligar': ['off', 'desliga', 'apagar', 'fecha']
+  //   };
 
-    List<dynamic> foundedDevices = [];
+  //   List<dynamic> foundedDevices = [];
 
-    for (var device in devices) {
-      String deviceName = device['name'].toLowerCase();
-      List<String> deviceNameParts = deviceName.split(' ');
-      if (deviceNameParts.any((part) => command.contains(part))) {
-        foundedDevices.add(device);
-      }
-    }
+  //   for (var device in devices) {
+  //     String deviceName = device['name'].toLowerCase();
+  //     List<String> deviceNameParts = deviceName.split(' ');
+  //     if (deviceNameParts.any((part) => command.contains(part))) {
+  //       foundedDevices.add(device);
+  //     }
+  //   }
 
-    if (foundedDevices.length == 1) {
-      var device = foundedDevices.first;
-      print('Dispositivo encontrado: ${device['name']}');
-      String action = commandMapping.keys.firstWhere(
-        (key) => commandMapping[key]!.any((word) => command.contains(word)),
-        orElse: () => '',
-      );
+  //   if (foundedDevices.length == 1) {
+  //     var device = foundedDevices.first;
+  //     print('Dispositivo encontrado: ${device['name']}');
+  //     String action = commandMapping.keys.firstWhere(
+  //       (key) => commandMapping[key]!.any((word) => command.contains(word)),
+  //       orElse: () => '',
+  //     );
 
-      if (action.isNotEmpty) {
-        final actionObj = device["actions"].firstWhere(
-          (a) => a["type"] == "switch",
-          orElse: () => null,
-        );
+  //     if (action.isNotEmpty) {
+  //       final actionObj = device["actions"].firstWhere(
+  //         (a) => a["type"] == "switch",
+  //         orElse: () => null,
+  //       );
 
-        if (actionObj != null) {
-          int index = devices.indexOf(device);
-          _toggleDevice(
-            device["external_port"].toString(),
-            actionObj["route"],
-            index,
-          );
-        }
-      }
-    }
-  }
+  //       if (actionObj != null) {
+  //         int index = devices.indexOf(device);
+  //         _toggleDevice(
+  //           device["external_port"].toString(),
+  //           actionObj["route"],
+  //           index,
+  //         );
+  //       }
+  //     }
+  //   }
+  // }
 
   Future<void> _loadDevices() async {
     final prefs = await SharedPreferences.getInstance();
@@ -121,43 +120,6 @@ class _HomePageState extends State<HomePage> {
     setState(() {
       devices = devicesParam;
     });
-  }
-
-  IconData _getIcon(String? iconName) {
-    switch (iconName) {
-      case "light":
-        return Icons.lightbulb;
-      case "garage":
-        return Icons.garage;
-      case "fan":
-        return Icons.ac_unit;
-      case "thermostat":
-        return Icons.thermostat;
-      default:
-        return Icons.device_unknown;
-    }
-  }
-
-  Future<void> _toggleDevice(String externalPort, String route, int index) async {
-    final url = 'http://$PUBLIC_IP:$externalPort$route';
-    setState(() {
-      devices[index]["props"]["state"] = devices[index]["props"]["state"] == "on" ? "off" : "on";
-    });
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          "Authorization": "Bearer $BEARER_TOKEN",
-        },
-      );
-      if (response.statusCode == 200) {
-        _loadDevices();
-      } else {
-        print('Falha ao acionar o dispositivo: ${response.statusCode}');
-      }
-    } catch (e) {
-      print('Erro ao acionar o dispositivo: $e');
-    }
   }
 
   void _onItemTapped(int index) {
