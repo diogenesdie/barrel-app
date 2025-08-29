@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/components/gradient_icon.dart';
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/pages/devices_page.dart';
 import 'package:smart_home/pages/perfil_page.dart';
 import 'package:smart_home/pages/search_devices_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
@@ -29,7 +30,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _loadDevices();
 
-    _pages = [const YourHomePage(), const SearchDevicesPage(), const PerfilPage()];
+    _pages = [const YourHomePage(), const DevicesPage(), const PerfilPage()];
   }
 
   @override

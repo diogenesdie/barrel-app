@@ -1,10 +1,27 @@
+import 'dart:io';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:smart_home/pages/home_page.dart';
 import 'package:smart_home/providers/voice_command_provider.dart';
 import 'package:smart_home/pages/auth_page.dart';
 
+class DevHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    final client = super.createHttpClient(context);
+    client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+      return kDebugMode; 
+    };
+    return client;
+  }
+}
+
 void main() {
+  if (kDebugMode) {
+    HttpOverrides.global = DevHttpOverrides();
+  }
   runApp(const SmartHomeApp());
 }
 

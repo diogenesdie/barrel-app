@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 
 enum AuthMode { escolha, login, registro, esqueceu }
 
@@ -64,6 +68,10 @@ class GradientButton extends StatelessWidget {
   }
 }
 
+// ===================== CONFIG API =====================
+const String _kLoginUrl = 'https://barrel.app.br/api/auth/v1/login';
+// =====================================================
+
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -81,6 +89,7 @@ class _AuthPageState extends State<AuthPage> {
 
   bool _obscure1 = true;
   bool _obscure2 = true;
+  bool _loading = false;
 
   @override
   void dispose() {
@@ -90,8 +99,74 @@ class _AuthPageState extends State<AuthPage> {
     super.dispose();
   }
 
-  void _goHome() {
+  Future<void> _goHome() async {
+    if (!mounted) return;
     Navigator.of(context).pushReplacementNamed('/home');
+  }
+
+  // ===================== LOGIN INTEGRAÇÃO =====================
+  Future<void> _submitLogin() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final username = _emailCtrl.text.trim();
+    final password = _senhaCtrl.text;
+
+    setState(() => _loading = true);
+    try {
+      final resp = await http
+          .post(
+            Uri.parse(_kLoginUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({'username': username, 'password': password}),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        final token = body['token'] as String?;
+        final expiresAt = body['expires_at'] as String?;
+        if (token == null || token.isEmpty) {
+          _showSnack('Resposta sem token. Tente novamente.', isError: true);
+        } else {
+          final prefs = await SharedPreferences.getInstance();
+          await prefs.setString('auth_token', token);
+          await prefs.setString('auth_user', jsonEncode(body));
+          if (expiresAt != null) {
+            await prefs.setString('auth_expires_at', expiresAt);
+          }
+          _showSnack('Login realizado com sucesso!');
+          await _goHome();
+        }
+      } else {
+        String msg = 'Falha no login (${resp.statusCode}).';
+        try {
+          final data = jsonDecode(resp.body);
+          if (data is Map && data['message'] is String) {
+            msg = data['message'];
+          }
+        } catch (_) {}
+        _showSnack(msg, isError: true);
+      }
+    } on http.ClientException catch (e) {
+      _showSnack('Erro de rede: ${e.message}', isError: true);
+    } on TimeoutException {
+      _showSnack('Tempo esgotado. Verifique sua conexão.', isError: true);
+    } catch (e) {
+      _showSnack('Erro inesperado: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+  // ===========================================================
+
+  void _showSnack(String text, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(text),
+        backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+      ),
+    );
   }
 
   Widget _buildLogo(double maxWidth) {
@@ -131,15 +206,17 @@ class _AuthPageState extends State<AuthPage> {
     );
   }
 
-  String? _validaEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Informe seu e-mail';
-    final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim());
-    if (!ok) return 'E-mail inválido';
+  String? _validaUsuarioOuEmail(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Informe usuário ou e-mail';
+    if (v.contains('@')) {
+      final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim());
+      if (!ok) return 'E-mail inválido';
+    }
     return null;
   }
 
   String? _validaSenha(String? v) {
-    if (v == null || v.length < 6) return 'Mínimo 6 caracteres';
+    if (v == null || v.length < 4) return 'Mínimo 4 caracteres'; // seu backend aceita '1234'
     return null;
   }
 
@@ -149,15 +226,15 @@ class _AuthPageState extends State<AuthPage> {
         SizedBox(
           width: double.infinity,
           child: GradientButton(
-            onPressed: () => setState(() => _mode = AuthMode.login),
-            child: const Text('Entrar'),
+            onPressed: _loading ? null : () => setState(() => _mode = AuthMode.login),
+            child: _loading ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Entrar'),
           ),
         ),
         const SizedBox(height: 12),
         SizedBox(
           width: double.infinity,
           child: OutlinedButton(
-            onPressed: () => setState(() => _mode = AuthMode.registro),
+            onPressed: _loading ? null : () => setState(() => _mode = AuthMode.registro),
             style: OutlinedButton.styleFrom(
               side: BorderSide(color: Theme.of(context).primaryColor),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -168,7 +245,7 @@ class _AuthPageState extends State<AuthPage> {
               child: const Text(
                 'Registrar',
                 style: TextStyle(
-                  color: Colors.white, // será mascarado pelo ShaderMask
+                  color: Colors.white, // será mascarado
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -179,13 +256,13 @@ class _AuthPageState extends State<AuthPage> {
         SizedBox(
           width: double.infinity,
           child: TextButton(
-            onPressed: _goHome,
+            onPressed: _loading ? null : _goHome,
             child: const Text('Continuar sem cadastro'),
           ),
         ),
         const SizedBox(height: 8),
         GestureDetector(
-          onTap: () => setState(() => _mode = AuthMode.esqueceu),
+          onTap: _loading ? null : () => setState(() => _mode = AuthMode.esqueceu),
           child: Text(
             'Esqueceu sua senha?',
             style: TextStyle(
@@ -207,8 +284,8 @@ class _AuthPageState extends State<AuthPage> {
             controller: _emailCtrl,
             autofillHints: const [AutofillHints.username, AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
-            decoration: _dec('Email'),
-            validator: _validaEmail,
+            decoration: _dec('Email ou usuário'),
+            validator: _validaUsuarioOuEmail,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -228,18 +305,21 @@ class _AuthPageState extends State<AuthPage> {
           SizedBox(
             width: double.infinity,
             child: GradientButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  // TODO: sua lógica de login
-                  _goHome();
-                }
-              },
-              child: const Text('Entrar'),
+              onPressed: _loading
+                  ? null
+                  : () async {
+                      if (_formKey.currentState!.validate()) {
+                        await _submitLogin();
+                      }
+                    },
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Entrar'),
             ),
           ),
           const SizedBox(height: 8),
           GestureDetector(
-            onTap: () => setState(() => _mode = AuthMode.esqueceu),
+            onTap: _loading ? null : () => setState(() => _mode = AuthMode.esqueceu),
             child: Text(
               'Esqueceu sua senha?',
               style: TextStyle(
@@ -250,7 +330,7 @@ class _AuthPageState extends State<AuthPage> {
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => setState(() => _mode = AuthMode.escolha),
+            onPressed: _loading ? null : () => setState(() => _mode = AuthMode.escolha),
             child: const Text('Voltar'),
           ),
         ],
@@ -268,7 +348,7 @@ class _AuthPageState extends State<AuthPage> {
             autofillHints: const [AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
             decoration: _dec('Email'),
-            validator: _validaEmail,
+            validator: _validaUsuarioOuEmail,
           ),
           const SizedBox(height: 12),
           TextFormField(
@@ -307,18 +387,22 @@ class _AuthPageState extends State<AuthPage> {
           SizedBox(
             width: double.infinity,
             child: GradientButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  // TODO: sua lógica de registro
-                  _goHome();
-                }
-              },
-              child: const Text('Registrar'),
+              onPressed: _loading
+                  ? null
+                  : () {
+                      if (_formKey.currentState!.validate()) {
+                        // TODO: chamar endpoint de registro
+                        _showSnack('Registro: implemente o endpoint.', isError: true);
+                      }
+                    },
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Registrar'),
             ),
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => setState(() => _mode = AuthMode.escolha),
+            onPressed: _loading ? null : () => setState(() => _mode = AuthMode.escolha),
             child: const Text('Voltar'),
           ),
         ],
@@ -336,27 +420,29 @@ class _AuthPageState extends State<AuthPage> {
             autofillHints: const [AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
             decoration: _dec('Email'),
-            validator: _validaEmail,
+            validator: _validaUsuarioOuEmail,
           ),
           const SizedBox(height: 16),
           SizedBox(
             width: double.infinity,
             child: GradientButton(
-              onPressed: () {
-                if (_formKey.currentState!.validate()) {
-                  // TODO: enviar e-mail de recuperação
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Se existir, enviaremos instruções para o seu e-mail.')),
-                  );
-                  setState(() => _mode = AuthMode.login);
-                }
-              },
-              child: const Text('Recuperar senha'),
+              onPressed: _loading
+                  ? null
+                  : () {
+                      if (_formKey.currentState!.validate()) {
+                        // TODO: chamar endpoint de recuperação
+                        _showSnack('Recuperação de senha: implemente o endpoint.', isError: true);
+                        setState(() => _mode = AuthMode.login);
+                      }
+                    },
+              child: _loading
+                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Recuperar senha'),
             ),
           ),
           const SizedBox(height: 8),
           TextButton(
-            onPressed: () => setState(() => _mode = AuthMode.login),
+            onPressed: _loading ? null : () => setState(() => _mode = AuthMode.login),
             child: const Text('Voltar ao login'),
           ),
         ],
