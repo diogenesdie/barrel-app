@@ -1,0 +1,2 @@
+/Users/diogenesdie/FACCAT/smart_home_barrel/android/app/.cxx/RelWithDebInfo/266x4y20/x86_64/CMakeFiles/edit_cache.dir
+/Users/diogenesdie/FACCAT/smart_home_barrel/android/app/.cxx/RelWithDebInfo/266x4y20/x86_64/CMakeFiles/rebuild_cache.dir
