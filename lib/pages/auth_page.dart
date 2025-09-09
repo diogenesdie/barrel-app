@@ -2,16 +2,17 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/utils/session_utils.dart';
 
 enum AuthMode { escolha, login, registro, esqueceu }
 
 /// Mesmo gradiente usado no App (primaryColorLight -> primaryColor)
 LinearGradient appGradient(BuildContext context) => LinearGradient(
-  colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-);
+      colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
 
 /// Botão com gradiente reutilizável
 class GradientButton extends StatelessWidget {
@@ -68,9 +69,7 @@ class GradientButton extends StatelessWidget {
   }
 }
 
-// ===================== CONFIG API =====================
-const String _kLoginUrl = 'https://barrel.app.br/api/auth/v1/login';
-// =====================================================
+const String _loginUrl = "$BASE_API_URL/auth/v1/login";
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -79,23 +78,60 @@ class AuthPage extends StatefulWidget {
   State<AuthPage> createState() => _AuthPageState();
 }
 
-class _AuthPageState extends State<AuthPage> {
+class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
   AuthMode _mode = AuthMode.escolha;
 
   final _formKey = GlobalKey<FormState>();
   final _emailCtrl = TextEditingController();
   final _senhaCtrl = TextEditingController();
   final _confirmaCtrl = TextEditingController();
+  final _senhaFocus = FocusNode();
 
   bool _obscure1 = true;
   bool _obscure2 = true;
   bool _loading = false;
+
+  bool _showLogo = false;
+  bool _showBarrel = false;
+  bool _showSmartHome = false;
+  bool _showForm = false;
+
+  @override
+  void initState() {
+    super.initState();
+
+    Future.delayed(const Duration(milliseconds: 200), () {
+      setState(() => _showLogo = true);
+    });
+
+    Future.delayed(const Duration(milliseconds: 800), () {
+      setState(() => _showBarrel = true);
+    });
+
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      setState(() => _showSmartHome = true);
+    });
+
+    Future.delayed(const Duration(milliseconds: 2000), () {
+      setState(() => _showForm = true);
+    });
+
+    _senhaFocus.addListener(() {
+      if (_senhaFocus.hasFocus) {
+        _senhaCtrl.selection = TextSelection(
+          baseOffset: 0,
+          extentOffset: _senhaCtrl.text.length,
+        );
+      }
+    });
+  }
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _senhaCtrl.dispose();
     _confirmaCtrl.dispose();
+    _senhaFocus.dispose();
     super.dispose();
   }
 
@@ -104,7 +140,6 @@ class _AuthPageState extends State<AuthPage> {
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
-  // ===================== LOGIN INTEGRAÇÃO =====================
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -115,7 +150,7 @@ class _AuthPageState extends State<AuthPage> {
     try {
       final resp = await http
           .post(
-            Uri.parse(_kLoginUrl),
+            Uri.parse(_loginUrl),
             headers: {'Content-Type': 'application/json'},
             body: jsonEncode({'username': username, 'password': password}),
           )
@@ -123,17 +158,13 @@ class _AuthPageState extends State<AuthPage> {
 
       if (resp.statusCode == 200 || resp.statusCode == 201) {
         final body = jsonDecode(resp.body) as Map<String, dynamic>;
-        final token = body['token'] as String?;
-        final expiresAt = body['expires_at'] as String?;
+        final token = body['data']['token'] as String?;
+
         if (token == null || token.isEmpty) {
           _showSnack('Resposta sem token. Tente novamente.', isError: true);
         } else {
-          final prefs = await SharedPreferences.getInstance();
-          await prefs.setString('auth_token', token);
-          await prefs.setString('auth_user', jsonEncode(body));
-          if (expiresAt != null) {
-            await prefs.setString('auth_expires_at', expiresAt);
-          }
+          await SessionUtils.saveSession(body['data'], password);
+
           _showSnack('Login realizado com sucesso!');
           await _goHome();
         }
@@ -143,6 +174,31 @@ class _AuthPageState extends State<AuthPage> {
           final data = jsonDecode(resp.body);
           if (data is Map && data['message'] is String) {
             msg = data['message'];
+            switch (msg) {
+              case 'session not found':
+                msg = 'Sessão não encontrada.';
+                break;
+              case 'session expired':
+                msg = 'Sessão expirada.';
+                break;
+              case 'session manually inactivated':
+                msg = 'Sessão manualmente inativada.';
+                break;
+              case 'invalid password':
+                msg = 'Senha inválida.';
+                break;
+              case 'unauthorized':
+                msg = 'Não autorizado.';
+                break;
+              case 'failed to generate token':
+                msg = 'Falha ao gerar token.';
+                break;
+              case 'failed to update token':
+                msg = 'Falha ao atualizar token.';
+                break;
+              default:
+                msg = 'Erro desconhecido. Tente novamente.';
+            }
           }
         } catch (_) {}
         _showSnack(msg, isError: true);
@@ -165,38 +221,185 @@ class _AuthPageState extends State<AuthPage> {
       SnackBar(
         content: Text(text),
         backgroundColor: isError ? Colors.red[700] : Colors.green[700],
+        duration: Duration(seconds: isError ? 4 : 2),
+        behavior: SnackBarBehavior.floating,
       ),
     );
   }
 
-  Widget _buildLogo(double maxWidth) {
-    final size = maxWidth.clamp(120, 180).toDouble();
-    return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 24),
-      child: Column(
-        children: [
-          // Troque por Image.asset('assets/logo.png', width: size) se preferir
-          CircleAvatar(
-            radius: size / 2,
-            backgroundColor: Theme.of(context).colorScheme.primary.withOpacity(.1),
-            child: Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: FittedBox(
-                child: Text(
-                  'LOGO',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 2,
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
+  Widget _fadeInUpPersistent({
+    required bool visible,
+    required Widget child,
+    Duration duration = const Duration(milliseconds: 600),
+  }) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: duration,
+      curve: Curves.easeOut,
+      child: AnimatedSlide(
+        duration: duration,
+        curve: Curves.easeOut,
+        offset: visible ? Offset.zero : const Offset(0, 0.2), // 20px "baixo"
+        child: child,
       ),
     );
   }
+
+  Widget _fadeInDownRoll({
+    required bool visible,
+    required Widget child,
+    Duration duration = const Duration(milliseconds: 800),
+  }) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: duration,
+      curve: Curves.easeOutCubic,
+      child: AnimatedSlide(
+        duration: duration,
+        curve: Curves.easeOutCubic,
+        offset: visible ? Offset.zero : const Offset(0, -1.0),
+        child: AnimatedRotation(
+          duration: duration,
+          curve: Curves.easeOutCubic,
+          turns: visible ? 0 : -.5,
+          child: child,
+        ),
+      ),
+    );
+  }
+
+  Widget _fadeInDown({
+    required bool visible,
+    required Widget child,
+    Duration duration = const Duration(milliseconds: 600),
+  }) {
+    return AnimatedOpacity(
+      opacity: visible ? 1 : 0,
+      duration: duration,
+      curve: Curves.easeOut,
+      child: AnimatedSlide(
+        duration: duration,
+        curve: Curves.easeOut,
+        // negativo => começa acima, positivo => começa abaixo
+        offset: visible ? Offset.zero : const Offset(0, -0.2),
+        child: child,
+      ),
+    );
+  }
+
+  Widget _buildAnimatedLogo(double size) {
+    return Column(
+      children: [
+        _fadeInDownRoll(
+          visible: _showLogo,
+          child: Image.asset('assets/logo.png', width: size),
+        ),
+        const SizedBox(height: 16),
+        _fadeInDown(
+          visible: _showBarrel,
+          child: ShaderMask(
+            shaderCallback: (bounds) => appGradient(context).createShader(bounds),
+            child: const Text(
+              'BARREL',
+              style: TextStyle(
+                fontSize: 36,
+                fontWeight: FontWeight.w800,
+                letterSpacing: 10,
+                color: Colors.white,
+              ),
+            ),
+          ),
+        ),
+        _fadeInDown(
+          visible: _showSmartHome,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'SMART',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 1.2,
+                  color: Colors.grey,
+                ),
+              ),
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 4),
+                width: 3,
+                height: 3,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: appGradient(context),
+                ),
+              ),
+              const Text(
+                'HOME',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w400,
+                  letterSpacing: 1.2,
+                  color: Colors.grey,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  // Widget _buildLogoNoAnimation(double maxWidth) {
+  //   final size = maxWidth.clamp(120, 180).toDouble();
+
+  //   return Padding(
+  //     padding: const EdgeInsets.only(top: 16, bottom: 24),
+  //     child: Column(
+  //       children: [
+  //         Image.asset('assets/logo.png', width: size),
+  //         Column(
+  //           crossAxisAlignment: CrossAxisAlignment.center,
+  //           children: [
+  //             ShaderMask(
+  //               shaderCallback: (bounds) => appGradient(context).createShader(bounds),
+  //               child: const Text(
+  //                 'BARREL',
+  //                 style: TextStyle(
+  //                   fontSize: 32,
+  //                   fontWeight: FontWeight.w800,
+  //                   letterSpacing: 1.5,
+  //                   color: Colors.white,
+  //                 ),
+  //               ),
+  //             ),
+  //             Row(
+  //               mainAxisAlignment: MainAxisAlignment.center,
+  //               children: [
+  //                 const Text(
+  //                   'Smart',
+  //                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, letterSpacing: 1.2, color: Colors.grey),
+  //                 ),
+  //                 Container(
+  //                   margin: const EdgeInsets.symmetric(horizontal: 4),
+  //                   width: 4,
+  //                   height: 4,
+  //                   decoration: BoxDecoration(
+  //                     shape: BoxShape.circle,
+  //                     gradient: appGradient(context),
+  //                   ),
+  //                 ),
+  //                 const Text(
+  //                   'Home',
+  //                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, letterSpacing: 1.2, color: Colors.grey),
+  //                 )
+  //               ],
+  //             )
+  //           ],
+  //         ),
+  //       ],
+  //     ),
+  //   );
+  // }
 
   InputDecoration _dec(String label, {Widget? suffix}) {
     return InputDecoration(
@@ -286,12 +489,16 @@ class _AuthPageState extends State<AuthPage> {
             keyboardType: TextInputType.emailAddress,
             decoration: _dec('Email ou usuário'),
             validator: _validaUsuarioOuEmail,
+            onFieldSubmitted: (_) {
+              FocusScope.of(context).requestFocus(_senhaFocus);
+            },
           ),
           const SizedBox(height: 12),
           TextFormField(
             controller: _senhaCtrl,
             autofillHints: const [AutofillHints.password],
             obscureText: _obscure1,
+            focusNode: _senhaFocus,
             decoration: _dec(
               'Senha',
               suffix: IconButton(
@@ -300,6 +507,11 @@ class _AuthPageState extends State<AuthPage> {
               ),
             ),
             validator: _validaSenha,
+            onFieldSubmitted: (_) async {
+              if (_formKey.currentState!.validate() && !_loading) {
+                await _submitLogin();
+              }
+            },
           ),
           const SizedBox(height: 16),
           SizedBox(
@@ -312,9 +524,7 @@ class _AuthPageState extends State<AuthPage> {
                         await _submitLogin();
                       }
                     },
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Entrar'),
+              child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Entrar'),
             ),
           ),
           const SizedBox(height: 8),
@@ -395,9 +605,7 @@ class _AuthPageState extends State<AuthPage> {
                         _showSnack('Registro: implemente o endpoint.', isError: true);
                       }
                     },
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Registrar'),
+              child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Registrar'),
             ),
           ),
           const SizedBox(height: 8),
@@ -435,9 +643,7 @@ class _AuthPageState extends State<AuthPage> {
                         setState(() => _mode = AuthMode.login);
                       }
                     },
-              child: _loading
-                  ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Recuperar senha'),
+              child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Recuperar senha'),
             ),
           ),
           const SizedBox(height: 8),
@@ -452,46 +658,46 @@ class _AuthPageState extends State<AuthPage> {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-        final maxCardWidth = isLandscape ? 520.0 : 420.0;
+    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+    final maxCardWidth = isLandscape ? 520.0 : 420.0;
 
-        return Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxCardWidth),
-                  child: Column(
-                    children: [
-                      _buildLogo(constraints.maxWidth * (isLandscape ? 0.35 : 0.5)),
-                      Card(
-                        elevation: 6,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: AnimatedSize(
-                            duration: const Duration(milliseconds: 200),
-                            curve: Curves.easeInOut,
-                            child: switch (_mode) {
-                              AuthMode.escolha => _botoesEscolha(context),
-                              AuthMode.login => _formLogin(),
-                              AuthMode.registro => _formRegistro(),
-                              AuthMode.esqueceu => _formEsqueceu(),
-                            },
-                          ),
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: maxCardWidth),
+              child: Column(
+                children: [
+                  _buildAnimatedLogo(maxCardWidth * (isLandscape ? 0.35 : 0.5)),
+                  const SizedBox(height: 24),
+                  _fadeInUpPersistent(
+                    visible: _showForm,
+                    child: Card(
+                      elevation: 6,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: Padding(
+                        padding: const EdgeInsets.all(20),
+                        child: AnimatedSize(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          child: switch (_mode) {
+                            AuthMode.escolha => _botoesEscolha(context),
+                            AuthMode.login => _formLogin(),
+                            AuthMode.registro => _formRegistro(),
+                            AuthMode.esqueceu => _formEsqueceu(),
+                          },
                         ),
                       ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

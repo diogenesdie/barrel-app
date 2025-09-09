@@ -31,7 +31,7 @@ Icon getDeviceIcon(String type, {Color color = Colors.white}) {
     case "light":
       return Icon(Icons.lightbulb, color: color);
     case "switch":
-      return Icon(Icons.switch_right, color: color);
+      return Icon(Icons.power_settings_new_rounded, color: color);
     default:
       return Icon(Icons.device_hub, color: color);
   }

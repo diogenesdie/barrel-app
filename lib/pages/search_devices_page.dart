@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:multicast_dns/multicast_dns.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
@@ -46,25 +45,14 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
         await for (SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
           ResourceRecordQuery.service(ptr.domainName),
         )) {
-          setState(() {
-            esps.clear();
-          });
-
           String ipAddress = "Desconhecido";
           String friendlyName = "Desconhecido";
           bool isAdded = false;
-
-          final prefs = await SharedPreferences.getInstance();
-          final espList = prefs.getStringList("esp") ?? [];
 
           await for (IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
             ResourceRecordQuery.addressIPv4(srv.target),
           )) {
             ipAddress = ip.address.address;
-          }
-
-          if (espList.contains(ipAddress)) {
-            isAdded = true;
           }
 
           await for (TxtResourceRecord txt in client.lookup<TxtResourceRecord>(
@@ -79,11 +67,7 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
 
           final deviceInfo = {"name": friendlyName, "ip": ipAddress, "port": srv.port.toString(), "isAdded": isAdded.toString()};
 
-          if (!esps.any((d) => d["ip"] == ipAddress)) {
-            setState(() {
-              esps.add(deviceInfo);
-            });
-          }
+          print(deviceInfo);
         }
       }
     } catch (e) {
@@ -142,7 +126,7 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       });
 
       for (ScanResult result in results) {
-        if (result.device.platformName.contains("BARREL_SETUP")) {
+        if (result.device.platformName.contains("BARREL")) {
           final type = _getType(result.device.platformName);
           final name = _getName(result.device.platformName);
           final ip = result.device.remoteId.toString();
@@ -186,7 +170,6 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   }
 
   void onConnectEsp(Map<String, String> esp) async {
-    return;
     setState(() {
       isAdding = true;
     });

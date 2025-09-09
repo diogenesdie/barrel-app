@@ -3,6 +3,20 @@ import 'package:geolocator/geolocator.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:smart_home/utils/session_utils.dart';
+
+Future<String?> getCityName(double latitude, double longitude) async {
+  try {
+    List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
+    if (placemarks.isNotEmpty) {
+      return placemarks.first.locality == "" || placemarks.first.locality == null ? placemarks.first.subAdministrativeArea : placemarks.first.locality;
+    }
+  } catch (e) {
+    print("Erro ao buscar cidade: $e");
+  }
+  return null;
+}
 
 LinearGradient getGradient() {
   int hour = DateTime.now().hour;
@@ -30,15 +44,25 @@ LinearGradient getGradient() {
   }
 }
 
-String getMessage() {
+Future<String> getMessage() async {
   int hour = DateTime.now().hour;
-
-  if (hour >= 18) {
-    return "Boa noite!";
-  } else if (hour >= 12) {
-    return "Boa tarde!";
+  String? username = (await SessionUtils.getUser())?['name'];
+  if (username == null || username.isEmpty) {
+    if (hour >= 18) {
+      return "Boa noite";
+    } else if (hour >= 12) {
+      return "Boa tarde";
+    } else {
+      return "Bom dia";
+    }
   } else {
-    return "Bom dia!";
+    if (hour >= 18) {
+      return "Boa noite, $username";
+    } else if (hour >= 12) {
+      return "Boa tarde, $username";
+    } else {
+      return "Bom dia, $username";
+    }
   }
 }
 
@@ -84,6 +108,7 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
   if (cachedData != null && cacheTimestamp != null && (currentTime - cacheTimestamp < cacheDuration)) {
     final jsonMap = jsonDecode(cachedData);
     final weather = IWeather.fromJson(jsonMap);
+    weather.city = await getCityName(latitude, longitude) ?? "Cidade não encontrada";
     return weather;
   }
 
@@ -112,6 +137,7 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
       }));
 
   final weather = getWeatherData(currentHour, response);
+  weather.city = await getCityName(latitude, longitude) ?? "Cidade não encontrada";
 
   prefs.setString('weather_data', jsonEncode(weather.toJson()));
   prefs.setInt('weather_timestamp', currentTime);
@@ -147,7 +173,7 @@ IWeather getWeatherData(int currentHour, IWeatherResponse response) {
     weathercode: currentWeatherCode,
     day: getDayOfWeek(DateTime.now().weekday),
     icon: getWeatherIconByCode(currentWeatherCode, currentHour < 18),
-    city: "São Paulo",
+    city: "",
     next3Days: next3Days,
   );
 }
@@ -215,7 +241,7 @@ class IWeather {
   final int weathercode;
   final String day;
   final String icon;
-  final String city;
+  String city;
   final List<DailyWeather> next3Days;
 
   IWeather({

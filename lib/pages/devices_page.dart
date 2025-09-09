@@ -1,13 +1,12 @@
-// lib/pages/devices_page.dart
 import 'package:flutter/material.dart';
+import 'package:smart_home/components/no_device.dart';
 import 'package:smart_home/pages/auth_page.dart';
 
-/// --- reutilizáveis (importe de onde já estiverem no seu projeto) ---
 LinearGradient appGradient(BuildContext context) => LinearGradient(
-  colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
-  begin: Alignment.topLeft,
-  end: Alignment.bottomRight,
-);
+      colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
 
 class DevicesPage extends StatefulWidget {
   const DevicesPage({super.key});
@@ -17,14 +16,11 @@ class DevicesPage extends StatefulWidget {
 }
 
 class _DevicesPageState extends State<DevicesPage> {
-  // MOCK: substitua por sua fonte (API/SharedPreferences)
-  final List<DeviceItem> _devices = [
-    DeviceItem(id: '1', name: 'Lâmpada Sala', type: DeviceType.light, isFavorite: true, state: 'on'),
-    DeviceItem(id: '2', name: 'Tomada Aquário', type: DeviceType.plug, isFavorite: false, state: 'off'),
-    DeviceItem(id: '3', name: 'Ventilador Quarto', type: DeviceType.fan, isFavorite: false, state: 'off'),
-    DeviceItem(id: '4', name: 'Garagem', type: DeviceType.garage, isFavorite: true, state: 'closed'),
-    DeviceItem(id: '5', name: 'Termostato', type: DeviceType.thermostat, isFavorite: false, state: '22°C'),
-  ];
+  // final List<DeviceItem> _devices = [
+  //   DeviceItem(id: '1', name: 'Alimentador da sala', type: DeviceType.feeder, isFavorite: true, state: 'on'),
+  //   DeviceItem(id: '2', name: 'Portão da casa', type: DeviceType.rfControl, isFavorite: false, state: 'off'),
+  // ];
+  final List<DeviceItem> _devices = [];
 
   @override
   Widget build(BuildContext context) {
@@ -35,36 +31,39 @@ class _DevicesPageState extends State<DevicesPage> {
 
         return Scaffold(
           body: SafeArea(
-            child: Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: maxCardWidth),
-                child: ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                  itemCount: _devices.length,
-                  separatorBuilder: (_, __) => const SizedBox(height: 10),
-                  itemBuilder: (context, index) {
-                    final d = _devices[index];
-                    return _DeviceCard(
-                      device: d,
-                      onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
-                      onOpen: () async {
-                        // abre edição
-                        final updated = await Navigator.push<DeviceItem>(
-                          context,
-                          MaterialPageRoute(builder: (_) => DeviceEditPage(device: d.copy())),
-                        );
-                        if (updated != null) {
-                          setState(() {
-                            final idx = _devices.indexWhere((e) => e.id == updated.id);
-                            if (idx >= 0) _devices[idx] = updated;
-                          });
-                        }
-                      },
-                    );
-                  },
-                ),
-              ),
-            ),
+            child: _devices.isNotEmpty
+                ? Center(
+                    child: ConstrainedBox(
+                        constraints: BoxConstraints(maxWidth: maxCardWidth),
+                        child: ListView.separated(
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+                          itemCount: _devices.length,
+                          separatorBuilder: (_, __) => const SizedBox(height: 10),
+                          itemBuilder: (context, index) {
+                            final d = _devices[index];
+                            return _DeviceCard(
+                              device: d,
+                              onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
+                              onOpen: () async {
+                                final updated = await Navigator.push<DeviceItem>(
+                                  context,
+                                  MaterialPageRoute(builder: (_) => DeviceEditPage(device: d.copy())),
+                                );
+                                if (updated != null) {
+                                  setState(() {
+                                    final idx = _devices.indexWhere((e) => e.id == updated.id);
+                                    if (idx >= 0) _devices[idx] = updated;
+                                  });
+                                }
+                              },
+                            );
+                          },
+                        )),
+                  )
+                : Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: noDevice(),
+                  ),
           ),
         );
       },
@@ -72,8 +71,7 @@ class _DevicesPageState extends State<DevicesPage> {
   }
 }
 
-/// Modelo simples
-enum DeviceType { light, plug, fan, garage, thermostat, unknown }
+enum DeviceType { rfControl, feeder, unknown }
 
 class DeviceItem {
   String id;
@@ -99,7 +97,6 @@ class DeviceItem {
       );
 }
 
-/// Card do dispositivo
 class _DeviceCard extends StatelessWidget {
   final DeviceItem device;
   final VoidCallback onFavorite;
@@ -113,16 +110,10 @@ class _DeviceCard extends StatelessWidget {
 
   IconData _iconForType(DeviceType t) {
     switch (t) {
-      case DeviceType.light:
-        return Icons.lightbulb;
-      case DeviceType.plug:
-        return Icons.power_outlined;
-      case DeviceType.fan:
-        return Icons.toys; // ventilador estilizado
-      case DeviceType.garage:
-        return Icons.garage;
-      case DeviceType.thermostat:
-        return Icons.thermostat;
+      case DeviceType.feeder:
+        return Icons.pets;
+      case DeviceType.rfControl:
+        return Icons.settings_remote;
       default:
         return Icons.device_unknown;
     }
@@ -130,18 +121,12 @@ class _DeviceCard extends StatelessWidget {
 
   String _typeLabel(DeviceType t) {
     switch (t) {
-      case DeviceType.light:
-        return 'Lâmpada';
-      case DeviceType.plug:
-        return 'Tomada';
-      case DeviceType.fan:
-        return 'Ventilador';
-      case DeviceType.garage:
-        return 'Garagem';
-      case DeviceType.thermostat:
-        return 'Termostato';
+      case DeviceType.feeder:
+        return 'Alimentador';
+      case DeviceType.rfControl:
+        return 'Controle RF';
       default:
-        return 'Dispositivo';
+        return 'Dispositivo Desconhecido';
     }
   }
 
@@ -152,7 +137,7 @@ class _DeviceCard extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: onOpen, // abre edição (tap no card todo, exceto estrela)
+        onTap: onOpen,
         borderRadius: BorderRadius.circular(16),
         child: Ink(
           decoration: BoxDecoration(
@@ -170,7 +155,6 @@ class _DeviceCard extends StatelessWidget {
             padding: const EdgeInsets.all(14),
             child: Row(
               children: [
-                // ícone com fundo em degradê
                 Container(
                   width: 48,
                   height: 48,
@@ -181,15 +165,11 @@ class _DeviceCard extends StatelessWidget {
                   child: Icon(_iconForType(device.type), color: Colors.white),
                 ),
                 const SizedBox(width: 12),
-                // textos
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(device.name,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Text(device.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
                       const SizedBox(height: 2),
                       Row(
                         children: [
@@ -210,7 +190,6 @@ class _DeviceCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                // botão estrela com degradê
                 _GradientStarButton(
                   selected: device.isFavorite,
                   onTap: onFavorite,
@@ -224,7 +203,6 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
-/// Estrela com degradê (toggle de favorito)
 class _GradientStarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
@@ -244,7 +222,6 @@ class _GradientStarButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            // anel sutil
             border: Border.all(color: Colors.grey.shade200),
             shape: BoxShape.circle,
           ),
@@ -259,9 +236,9 @@ class _GradientStarButton extends StatelessWidget {
   }
 }
 
-/// Tela de edição (layout no mesmo estilo)
 class DeviceEditPage extends StatefulWidget {
   final DeviceItem device;
+
   const DeviceEditPage({super.key, required this.device});
 
   @override
@@ -272,6 +249,27 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
   late TextEditingController _nameCtrl;
   late DeviceType _type;
   late String _state;
+  late IconData _selectedIcon;
+
+  final Map<DeviceType, List<IconData>> _iconOptions = {
+    DeviceType.rfControl: [
+      Icons.settings_remote,
+      Icons.garage,
+      Icons.radio,
+      Icons.wifi,
+    ],
+    DeviceType.feeder: [
+      Icons.pets,
+      Icons.restaurant,
+      Icons.rice_bowl,
+      Icons.local_dining,
+      Icons.fastfood,
+    ],
+    DeviceType.unknown: [
+      Icons.device_unknown,
+      Icons.question_mark,
+    ],
+  };
 
   @override
   void initState() {
@@ -279,6 +277,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     _nameCtrl = TextEditingController(text: widget.device.name);
     _type = widget.device.type;
     _state = widget.device.state;
+    _selectedIcon = _iconOptions[_type]!.first;
   }
 
   @override
@@ -304,7 +303,11 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
         shadowColor: Colors.grey[200],
         flexibleSpace: Container(
           decoration: BoxDecoration(
-            gradient: appGradient(context),
+            gradient: LinearGradient(
+              colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
             borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
           ),
         ),
@@ -325,29 +328,43 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                   padding: const EdgeInsets.all(20),
                   child: Column(
                     children: [
+                      SizedBox(
+                        height: 80,
+                        child: SingleChildScrollView(
+                          scrollDirection: Axis.horizontal,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: _iconOptions[_type]!.map((icon) {
+                              final isSelected = icon == _selectedIcon;
+                              return GestureDetector(
+                                onTap: () => setState(() => _selectedIcon = icon),
+                                child: AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: isSelected ? Theme.of(context).primaryColor.withOpacity(0.2) : Colors.grey.shade200,
+                                    border: Border.all(
+                                      color: isSelected ? Theme.of(context).primaryColor : Colors.transparent,
+                                      width: 2,
+                                    ),
+                                  ),
+                                  child: Icon(
+                                    icon,
+                                    size: 32,
+                                    color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
+                                  ),
+                                ),
+                              );
+                            }).toList(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
                       TextField(
                         controller: _nameCtrl,
                         decoration: _dec('Nome do dispositivo'),
-                      ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<DeviceType>(
-                        value: _type,
-                        decoration: _dec('Tipo'),
-                        items: DeviceType.values
-                            .where((e) => e != DeviceType.unknown)
-                            .map((t) => DropdownMenuItem(
-                                  value: t,
-                                  child: Text(_label(t)),
-                                ))
-                            .toList(),
-                        onChanged: (v) => setState(() => _type = v ?? _type),
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: TextEditingController(text: _state),
-                        onChanged: (v) => _state = v,
-                        decoration: _dec('Estado (texto livre)'),
                       ),
                       const SizedBox(height: 20),
                       Row(
@@ -380,22 +397,5 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
         ),
       ),
     );
-  }
-
-  String _label(DeviceType t) {
-    switch (t) {
-      case DeviceType.light:
-        return 'Lâmpada';
-      case DeviceType.plug:
-        return 'Tomada';
-      case DeviceType.fan:
-        return 'Ventilador';
-      case DeviceType.garage:
-        return 'Garagem';
-      case DeviceType.thermostat:
-        return 'Termostato';
-      default:
-        return 'Desconhecido';
-    }
   }
 }

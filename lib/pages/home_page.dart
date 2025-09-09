@@ -7,7 +7,7 @@ import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/pages/devices_page.dart';
 import 'package:smart_home/pages/perfil_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
-import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:smart_home/utils/session_utils.dart';
 import 'dart:async';
 
 class HomePage extends StatefulWidget {
@@ -19,79 +19,56 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   List<dynamic> devices = [];
-  late stt.SpeechToText _speech;
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
   late final List<Widget> _pages;
+  final String _commKey = "autoProtocol";
+
+  bool _autoProtocol = true;
 
   @override
   void initState() {
     super.initState();
     _loadDevices();
+    _loadCommMode();
 
     _pages = [const YourHomePage(), const DevicesPage(), const PerfilPage()];
   }
 
   @override
   void dispose() {
-    _speech.stop();
     super.dispose();
   }
-
-  // void _processCommand(String phrase) {
-  //   print('Comando recebido: $phrase');
-
-  //   String command = phrase;
-  //   if (phrase.contains('eva')) {
-  //     command = phrase.split('eva').last.trim().toLowerCase();
-  //   }
-
-  //   // Mapear comandos para ações
-  //   Map<String, List<String>> commandMapping = {
-  //     'ligar': ['on', 'liga', 'acender', 'abre'],
-  //     'desligar': ['off', 'desliga', 'apagar', 'fecha']
-  //   };
-
-  //   List<dynamic> foundedDevices = [];
-
-  //   for (var device in devices) {
-  //     String deviceName = device['name'].toLowerCase();
-  //     List<String> deviceNameParts = deviceName.split(' ');
-  //     if (deviceNameParts.any((part) => command.contains(part))) {
-  //       foundedDevices.add(device);
-  //     }
-  //   }
-
-  //   if (foundedDevices.length == 1) {
-  //     var device = foundedDevices.first;
-  //     print('Dispositivo encontrado: ${device['name']}');
-  //     String action = commandMapping.keys.firstWhere(
-  //       (key) => commandMapping[key]!.any((word) => command.contains(word)),
-  //       orElse: () => '',
-  //     );
-
-  //     if (action.isNotEmpty) {
-  //       final actionObj = device["actions"].firstWhere(
-  //         (a) => a["type"] == "switch",
-  //         orElse: () => null,
-  //       );
-
-  //       if (actionObj != null) {
-  //         int index = devices.indexOf(device);
-  //         _toggleDevice(
-  //           device["external_port"].toString(),
-  //           actionObj["route"],
-  //           index,
-  //         );
-  //       }
-  //     }
-  //   }
-  // }
 
   Future<void> _loadDevices() async {
     final prefs = await SharedPreferences.getInstance();
     final devicesJson = prefs.getString("devices") ?? "[]";
     getDevicesStates(jsonDecode(devicesJson));
+  }
+
+  Future<void> _loadCommMode() async {
+    bool isLoggedIn = await SessionUtils.isLoggedIn();
+
+    if (!isLoggedIn) {
+      setState(() {
+        _autoProtocol = false;
+      });
+      _saveCommMode(false);
+      return;
+    }
+
+    final prefs = await SharedPreferences.getInstance();
+    final savedMode = prefs.getBool(_commKey);
+    if (savedMode != null) {
+      setState(() {
+        _autoProtocol = savedMode;
+      });
+    }
+  }
+
+  Future<void> _saveCommMode(bool value) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_commKey, value);
   }
 
   void getDevicesStates(List<dynamic> devicesParam) async {
@@ -139,17 +116,59 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  void _toggleCommunicationMode() async {
+    bool isLoggedIn = await SessionUtils.isLoggedIn();
+
+    if (!isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.orangeAccent,
+          content: Text("Você precisa estar logado para usar a comunicação Online."),
+          duration: const Duration(seconds: 2),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _autoProtocol = !_autoProtocol;
+    });
+
+    await _saveCommMode(_autoProtocol);
+
+    final mode = _autoProtocol ? "Automático (Local/Online)" : "Comunicação Local";
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text("Modo alterado para: $mode"),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         elevation: 10,
         shadowColor: Colors.grey[200],
-        title: Row(children: [
-          Icon(Icons.home_outlined),
-          SizedBox(width: 10),
-          Text('Barrel Smart Home'),
-        ],),
+        title: Row(
+          children: [
+            Icon(Icons.home_outlined),
+            SizedBox(width: 10),
+            Text('Barrel Smart Home'),
+          ],
+        ),
+        actions: [
+          IconButton(
+            tooltip: "Alterar modo de comunicação",
+            onPressed: _toggleCommunicationMode,
+            icon: Icon(
+              _autoProtocol ? Icons.wifi : Icons.home_filled,
+            ),
+          ),
+        ],
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: LinearGradient(
