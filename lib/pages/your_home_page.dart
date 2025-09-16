@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:app_settings/app_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,12 +6,19 @@ import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:multicast_dns/multicast_dns.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_home/components/device_warning.dart';
 import 'package:smart_home/components/dialogs/device_config_dialog.dart';
+import 'package:smart_home/components/dialogs/error_message_dialog.dart';
+import 'package:smart_home/components/loading.dart';
 import 'package:smart_home/components/no_device.dart';
+import 'package:smart_home/components/sequencial_text_switch.dart';
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/models/device.dart';
+import 'package:smart_home/models/device_repository.dart';
+import 'package:smart_home/models/group.dart';
+import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/permission_utils.dart';
@@ -24,7 +30,46 @@ import 'package:network_info_plus/network_info_plus.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
 const String wifiCharacteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
-const String deviceIdCharUuid = "abcdef02-1234-5678-1234-56789abcdef0";
+
+class AnimatedGradientButton extends StatelessWidget {
+  final bool stateOn;
+  final IconData icon;
+
+  const AnimatedGradientButton({
+    super.key,
+    required this.stateOn,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = stateOn ? [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor] : [Colors.grey[600]!, Colors.grey[800]!];
+
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(begin: colors.first, end: colors.first),
+      duration: const Duration(milliseconds: 500),
+      builder: (context, color1, _) {
+        return TweenAnimationBuilder<Color?>(
+          tween: ColorTween(begin: colors.last, end: colors.last),
+          duration: const Duration(milliseconds: 500),
+          builder: (context, color2, _) {
+            return Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(10),
+                gradient: LinearGradient(
+                  colors: [color1 ?? colors.first, color2 ?? colors.last],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Icon(icon, color: Colors.white, size: 64),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 
 class YourHomePage extends StatefulWidget {
   const YourHomePage({super.key});
@@ -34,13 +79,15 @@ class YourHomePage extends StatefulWidget {
 }
 
 class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver {
-  List<dynamic> devices = [];
+  List<Device> devices = [];
+  List<Group> groups = [];
   IWeather? weather;
   final List<Map<String, dynamic>> esps = [];
   bool isScanning = false;
   bool isAdding = false;
   bool isConnecting = false;
   bool isLoadingDevices = false;
+  bool isLoadingGroups = false;
   bool isBluetoothEnabled = true;
   BluetoothDevice? connectedDevice;
   BluetoothCharacteristic? wifiCharacteristic;
@@ -50,17 +97,25 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   late TextEditingController passwordController;
   late TextEditingController accessKeyController;
   Map<String, dynamic>? _configuringEsp;
+  Future<List<Map<String, dynamic>>>? _scanFuture;
+  late DeviceRepository _deviceRepo;
+  late GroupRepository _groupRepo;
+  void Function(void Function())? _modalSetState;
+  late Group defaultGroup;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadWeather();
-    _loadDevices();
     ssidController = TextEditingController();
     passwordController = TextEditingController();
     accessKeyController = TextEditingController();
     _getWifiSSID();
+    _deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
+    _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
+    _loadDevices();
+    _loadGroups();
   }
 
   @override
@@ -73,6 +128,25 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
       _getWifiSSID();
+      _loadDevices();
+      _updateBluetoothStatus();
+    }
+  }
+
+  Future<void> _updateBluetoothStatus() async {
+    var state = await FlutterBluePlus.adapterState.first;
+    bool isOn = state == BluetoothAdapterState.on;
+
+    if (_modalSetState != null) {
+      _modalSetState!(() {
+        isBluetoothEnabled = isOn;
+      });
+    }
+
+    if (mounted) {
+      setState(() {
+        isBluetoothEnabled = isOn;
+      });
     }
   }
 
@@ -118,24 +192,61 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     });
   }
 
-  Future<List<Map<String, dynamic>>> _discoverDevicesReturn() async {
+  void _startScan({void Function(void Function())? setModalState}) {
+    if (isScanning) return;
+
+    void updateState(Function fn) {
+      if (setModalState != null) {
+        setModalState(() => fn());
+      }
+      setState(() => fn());
+    }
+
+    updateState(() {
+      _scanFuture = _discoverDevicesReturn(setModalState: setModalState);
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> _discoverDevicesReturn({void Function(void Function())? setModalState}) async {
+    print("🔍 Iniciando escaneamento Bluetooth...");
     var state = await FlutterBluePlus.adapterState.first;
     var isOn = state == BluetoothAdapterState.on;
-    setState(() {
+    void updateState(Function fn) {
+      if (setModalState != null) {
+        setModalState(() => fn());
+      }
+      setState(() => fn());
+    }
+
+    updateState(() {
       isBluetoothEnabled = isOn;
     });
+    updateState(() {
+      isScanning = true;
+    });
+
     if (!isOn) {
+      updateState(() {
+        isScanning = false;
+      });
       return [];
     }
 
     try {
       await checkBluetoothScanPermission();
+      await FlutterBluePlus.stopScan();
       await FlutterBluePlus.startScan(timeout: const Duration(seconds: 5));
     } on PlatformException catch (e) {
       print("Erro de plataforma: ${e.message}");
+      updateState(() {
+        isScanning = false;
+      });
       return [];
     } catch (e) {
       print("Erro inesperado: $e");
+      updateState(() {
+        isScanning = false;
+      });
       return [];
     }
     List<Map<String, dynamic>> foundDevices = [];
@@ -144,11 +255,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     await Future.delayed(Duration(seconds: 5));
 
     // Obtém os resultados da varredura
-    print(FlutterBluePlus.scanResults.first);
     List<ScanResult> results = await FlutterBluePlus.scanResults.first;
 
     for (ScanResult result in results) {
-      print(result.device.platformName);
       if (result.device.platformName.contains("BARREL")) {
         final type = getDeviceType(result.device.platformName);
         final name = getDeviceName(result.device.platformName);
@@ -156,7 +265,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         final port = result.advertisementData.txPowerLevel.toString();
         final isAdded = false;
 
-        final deviceInfo = {"type": type, "name": name, "ip": ip, "port": port, "isAdded": isAdded.toString(), "device": result.device};
+        final deviceInfo = {"id": result.device.platformName, "type": type, "name": name, "ip": ip, "port": port, "isAdded": isAdded.toString(), "device": result.device};
 
         if (!foundDevices.any((d) => d["ip"] == ip)) {
           foundDevices.add(deviceInfo);
@@ -164,65 +273,78 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       }
     }
 
+    updateState(() {
+      isScanning = false;
+    });
+
     return foundDevices;
   }
 
-  Future<void> _loadDevices() async {
-    setState(() {
-      isLoadingDevices = true;
-    });
+  Future<void> _loadGroups() async {
+    setState(() => isLoadingGroups = true);
 
-    final prefs = await SharedPreferences.getInstance();
-    final devicesJson = prefs.getString("devices") ?? "[]";
-
-    getDevicesStates(jsonDecode(devicesJson));
-
-    setState(() {
-      isLoadingDevices = false;
-    });
-  }
-
-  void getDevicesStates(List<dynamic> devicesParam) async {
-    for (final device in devicesParam) {
-      final url = 'http://$PUBLIC_IP:${device["external_port"]}${device["routes"]["state"]}';
-
-      try {
-        final response = await http.get(
-          Uri.parse(url),
-          headers: {
-            "Authorization": "Bearer $BEARER_TOKEN",
-          },
-        );
-
-        if (response.statusCode == 200) {
-          final deviceState = jsonDecode(response.body);
-          device["props"]["state"] = deviceState["state"];
-        } else {
-          print('Falha ao obter o estado do dispositivo: ${response.statusCode}');
-        }
-      } catch (e) {
-        print('Erro ao obter o estado do dispositivo: $e');
-      }
+    try {
+      final loadedGroups = _groupRepo.getGroups();
+      setState(() {
+        groups = loadedGroups;
+        defaultGroup = groups.firstWhere((g) => g.isDefault == true);
+      });
+    } catch (e) {
+      print("Erro ao carregar grupos: $e");
+    } finally {
+      setState(() => isLoadingGroups = false);
     }
-
-    setState(() {
-      devices = devicesParam;
-    });
   }
 
-  IconData _getIcon(String? iconName) {
-    switch (iconName) {
-      case "lightbulb":
-      case "light":
-        return FontAwesomeIcons.lightbulb;
-      case "garage":
-        return FontAwesomeIcons.car;
-      case "fan":
-        return FontAwesomeIcons.fan;
-      case "thermostat":
-        return FontAwesomeIcons.temperatureHalf;
-      default:
-        return FontAwesomeIcons.question;
+  Future<void> _loadDevices() async {
+    setState(() => isLoadingDevices = true);
+
+    try {
+      final loadedDevices = _deviceRepo.getDevices();
+      setState(() {
+        devices = loadedDevices;
+      });
+
+      final mqtt = MqttService();
+
+      await mqtt.connect(
+        clientId: "mobile_${DateTime.now().millisecondsSinceEpoch}",
+      );
+
+      for (var d in loadedDevices) {
+        mqtt.subscribe(d.id);
+      }
+
+      // Escuta alterações
+      mqtt.listen((topic, payload) async {
+        // Esperado: "on,192.168.103.4"
+        final parts = payload.split(',');
+        if (parts.length == 2) {
+          final newState = parts[0];
+          final newIp = parts[1];
+          final deviceId = topic.split('/').elementAt(2); // users/{user}/{deviceId}/status
+
+          setState(() {
+            devices = devices.map((dev) {
+              if (dev.id == deviceId) {
+                return dev.copyWith(
+                  state: newState,
+                  ip: newIp,
+                );
+              }
+              return dev;
+            }).toList();
+          });
+
+          // Atualiza também no repositório
+          final updatedDevice = devices.firstWhere((d) => d.id == deviceId);
+          await _deviceRepo.updateDevice(updatedDevice);
+        }
+      });
+    } catch (e) {
+      print("Erro ao carregar devices: $e");
+    } finally {
+      setState(() => isLoadingDevices = false);
     }
   }
 
@@ -234,25 +356,99 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
-  Future<void> _toggleDevice(String externalPort, String route, int index) async {
-    final url = 'http://$PUBLIC_IP:$externalPort$route';
-    setState(() {
-      devices[index]["props"]["state"] = devices[index]["props"]["state"] == "on" ? "off" : "on";
-    });
-    try {
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {
-          "Authorization": "Bearer $BEARER_TOKEN",
-        },
+  Widget _statusDevice(Device device) {
+    if (device.type == "trigger") {
+      return SequentialTextSwitcher(
+        text: device.state.toUpperCase() == "ON" ? "Disparado" : "",
       );
-      if (response.statusCode == 200) {
-        _loadDevices();
-      } else {
-        print('Falha ao acionar o dispositivo: ${response.statusCode}');
-      }
+    } else {
+      return SequentialTextSwitcher(
+        text: device.state.toUpperCase() == "ON" ? "Ligado" : "Desligado",
+      );
+    }
+  }
+
+  Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
+    bool ok = false;
+    try {
+      final uri = Uri.parse('http://${device.ip}/command');
+      final response = await http.post(
+        uri,
+        body: {'state': newState},
+      ).timeout(const Duration(seconds: 5));
+      ok = response.statusCode == 200;
+      print("Resposta HTTP: ${response.statusCode} - ${response.body}");
     } catch (e) {
-      print('Erro ao acionar o dispositivo: $e');
+      ok = false;
+      print("Erro ao enviar comando HTTP local: $e");
+    }
+
+    return ok;
+  }
+
+  Future<String?> _getCurrentSsid() async {
+    final info = NetworkInfo();
+    final ssid = await info.getWifiName();
+    return ssid?.replaceAll('"', '');
+  }
+
+  Future<void> _toggleDevice(Device device) async {
+    final prefs = await SharedPreferences.getInstance();
+    final autoMode = (prefs.getBool(COMM_KEY) ?? true) || device.type == "trigger";
+
+    String newState = device.state == "on" ? "off" : "on";
+
+    if (device.type == "trigger") {
+      if (newState == "on") {
+        newState = "trigger";
+      } else {
+        return;
+      }
+    }
+
+    bool ok = false;
+
+    if (autoMode) {
+      final currentSsid = await _getCurrentSsid();
+      if ("" == currentSsid) {
+        ok = await _sendHttpCommand(device, newState, Duration(milliseconds: 500));
+      }
+      if (!ok) {
+        final mqtt = MqttService();
+        ok = await mqtt.publishMessage(device.id, newState);
+      }
+    } else {
+      // MODO LOCAL → HTTP
+      ok = await _sendHttpCommand(device, newState, Duration(seconds: 5));
+    }
+
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Falha ao enviar comando"),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } else {
+      if (device.type == 'trigger') {
+        setState(() {
+          devices = devices.map((d) {
+            if (d.id == device.id) {
+              return d.copyWith(state: 'on');
+            }
+            return d;
+          }).toList();
+        });
+        await Future.delayed(const Duration(seconds: 2));
+        setState(() {
+          devices = devices.map((d) {
+            if (d.id == device.id) {
+              return d.copyWith(state: 'off');
+            }
+            return d;
+          }).toList();
+        });
+      }
     }
   }
 
@@ -268,47 +464,10 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     return ptr.address.address;
   }
 
-  Future<void> connectToDevice(BluetoothDevice device, String credentials) async {
-    await device.connect();
-    connectedDevice = device;
-
-    List<BluetoothService> services = await device.discoverServices();
-    for (var service in services) {
-      if (service.uuid.toString() == serviceUuid) {
-        for (var characteristic in service.characteristics) {
-          final uuid = characteristic.uuid.toString().toLowerCase();
-
-          if (uuid == wifiCharacteristicUuid) {
-            wifiCharacteristic = characteristic;
-            sendWifiCredentials(credentials);
-            setState(() {});
-          }
-
-          if (uuid == deviceIdCharUuid.toLowerCase()) {
-            List<int> value = await characteristic.read();
-            String deviceId = String.fromCharCodes(value);
-            print("Device ID: $deviceId");
-          }
-        }
-      }
-    }
-  }
-
-  void sendWifiCredentials(String credentials) async {
-    if (wifiCharacteristic == null) return;
-
-    await wifiCharacteristic!.write(credentials.codeUnits);
-
-    List<int> response = await wifiCharacteristic!.read();
-    String responseStr = String.fromCharCodes(response);
-
-    startDeviceConfig(context);
-  }
-
-  void startDeviceConfig(BuildContext context) {
+  Future<void> startDeviceConfig(BuildContext context, BluetoothDevice device, String deviceId, String credentials) async {
     showDialog(
       context: context,
-      barrierDismissible: false, // não fecha clicando fora
+      barrierDismissible: false,
       builder: (context) {
         return DeviceConfigDialog(
           steps: [
@@ -318,46 +477,112 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
             "Configuração concluída!",
           ],
           onProcess: (updateStep) async {
-            // Simulação do processo com delays
-            await Future.delayed(const Duration(seconds: 2));
-            updateStep("Enviando credenciais Wi-Fi…");
+            try {
+              // Etapa 1: conectar
+              updateStep("Conectando ao dispositivo…");
+              try {
+                await device.connect(timeout: Duration(seconds: 10));
+              } catch (_) {
+                try {
+                  print("Tentando reconectar...");
+                  await Future.delayed(Duration(seconds: 2));
+                  await device.connect(timeout: Duration(seconds: 10));
+                } catch (e) {
+                  print("Tentando reconectar novamente...");
+                  await Future.delayed(Duration(seconds: 5));
+                  await device.connect(timeout: Duration(seconds: 10));
+                }
+              }
+              connectedDevice = device;
+              await Future.delayed(const Duration(milliseconds: 5000));
 
-            await Future.delayed(const Duration(seconds: 2));
-            updateStep("Obtendo IP do dispositivo…");
+              // Descobrir serviços
+              final services = await device.discoverServices();
+              for (var service in services) {
+                if (service.uuid.toString().toLowerCase() == serviceUuid.toLowerCase()) {
+                  for (var characteristic in service.characteristics) {
+                    final uuid = characteristic.uuid.toString().toLowerCase();
 
-            await Future.delayed(const Duration(seconds: 2));
-            updateStep("Configuração concluída!");
+                    if (uuid == wifiCharacteristicUuid.toLowerCase()) {
+                      wifiCharacteristic = characteristic;
+                    }
+                  }
+                }
+              }
+
+              try {
+                // Etapa 2: mandar credenciais
+                updateStep("Configurando a conexão Wi-Fi…");
+                if (wifiCharacteristic != null) {
+                  await wifiCharacteristic!.write(credentials.codeUnits);
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  final resp = await wifiCharacteristic!.read();
+                  print("Resposta: ${String.fromCharCodes(resp)}");
+                }
+              } catch (e) {
+                print("Erro ao enviar credenciais: $e");
+              }
+
+              // Etapa 3: obter IP (discoverDeviceIp)
+              await device.disconnect();
+              updateStep("Obtendo informações do dispositivo…");
+              await Future.delayed(const Duration(seconds: 5));
+              final ip = await discoverDeviceIp();
+              print("Dispositivo IP: $ip");
+              if (ip == null) {
+                throw "Não foi possível obter o IP do dispositivo. Verifique se ele está conectado ao Wi-Fi.";
+              }
+
+              String chave_iv = "";
+              // só pega a chave iv se for diferente de trigger
+              if (!deviceId.toLowerCase().contains("trigger")) {
+                // faz chamada para ip dispositivo para registrar /get_key_iv
+                final url = 'http://$ip/get_key_iv';
+                final response = await http.get(Uri.parse(url));
+                if (response.statusCode != 200) {
+                  throw "Falha ao registrar o dispositivo: ${response.statusCode}";
+                }
+                chave_iv = response.body;
+                print("Chave e IV: $chave_iv");
+              }
+
+              final newDevice = Device(
+                id: deviceId,
+                name: getDeviceName(deviceId),
+                type: getDeviceType(deviceId),
+                ip: ip,
+                ivKey: chave_iv,
+                state: "off",
+                ssid: _wifiSSID ?? "",
+                communicationMode: "auto",
+                groupId: defaultGroup.id,
+              );
+              await _deviceRepo.addDevice(newDevice);
+
+              // Etapa final
+              updateStep("Configuração concluída!");
+              await Future.delayed(const Duration(seconds: 2));
+
+              //fecha dialog e atualiza lista
+              Navigator.of(context).pop(true);
+              Navigator.of(context).pop(true);
+              _loadDevices();
+            } catch (e) {
+              print("Erro no processo de configuração: $e");
+              Navigator.of(context).pop(); // fecha dialog
+
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (_) => const FriendlyErrorDialog(
+                  message: "Ocorreu um erro durante o processo de configuração, por favor, tente novamente.",
+                ),
+              );
+            }
           },
         );
       },
     );
-  }
-
-  Future<void> testMqttService() async {
-    final mqtt = MqttService();
-
-    final username = await SessionUtils.getUsername();
-    final password = await SessionUtils.getPassword();
-
-    // conecta
-    await mqtt.connect(
-      clientId: "flutter_test_${DateTime.now().millisecondsSinceEpoch}",
-      username: username ?? "testUser",
-      password: password ?? "testPass",
-    );
-
-    // publica mensagem de teste
-    final ok = await mqtt.publishMessage("device123", "Hello MQTT 🚀");
-
-    if (ok) {
-      print("✅ Mensagem publicada com sucesso!");
-    } else {
-      print("❌ Falha ao publicar a mensagem");
-    }
-
-    // desconecta depois de 5s
-    await Future.delayed(const Duration(seconds: 5));
-    mqtt.disconnect();
   }
 
   void onAddDevice() async {
@@ -374,6 +599,18 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         final PageController pageController = PageController();
 
         void onItemTapped(int index) {
+          if (index < 0 || index >= 2) return;
+
+          if (index == 1 && _configuringEsp == null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text("Selecione um dispositivo para configurar"),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+
           pageController.animateToPage(
             index,
             duration: Duration(milliseconds: 300),
@@ -382,6 +619,14 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         }
 
         return StatefulBuilder(builder: (context, setModalState) {
+          if (_scanFuture == null) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              _startScan(setModalState: setModalState);
+            });
+          }
+
+          _modalSetState = setModalState;
+
           return AnimatedPadding(
             duration: const Duration(milliseconds: 200),
             padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -389,12 +634,13 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               height: 450,
               child: PageView(
                 controller: pageController,
+                physics: NeverScrollableScrollPhysics(),
                 children: [
                   FutureBuilder<List>(
-                    future: _discoverDevicesReturn(),
+                    future: _scanFuture,
                     builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
+                      if (snapshot.connectionState == ConnectionState.waiting || isScanning) {
+                        return const Center(child: Loading(mensagem: "Buscando dispositivos"));
                       }
                       if (snapshot.hasError) {
                         return Center(child: Text("Erro ao buscar dispositivos"));
@@ -407,147 +653,259 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                         child: Column(
                           children: [
                             Padding(
-                              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                              child: Row(
-                                children: [
-                                  Icon(Icons.search, color: Theme.of(context).primaryColorLight),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    "Dispositivos encontrados",
-                                    style: TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.grey[800],
+                              padding: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.03),
+                                      blurRadius: 3,
+                                      offset: const Offset(0, 2),
                                     ),
-                                  ),
-                                ],
+                                  ],
+                                ),
+                                child: Row(
+                                  children: [
+                                    Icon(
+                                      Icons.devices_other_rounded,
+                                      color: Theme.of(context).primaryColorLight,
+                                      size: 18,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      "Dispositivos encontrados",
+                                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.grey[800],
+                                            fontSize: 16,
+                                          ),
+                                    ),
+                                    const Spacer(),
+                                    IconButton(
+                                      style: IconButton.styleFrom(
+                                        backgroundColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      onPressed: () {
+                                        _startScan(setModalState: setModalState);
+                                      },
+                                      icon: Icon(Icons.refresh_rounded, color: Theme.of(context).primaryColorLight, size: 20),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 12),
                             Expanded(
-                              child: !isBluetoothEnabled
-                                  ? deviceWarning("Bluetooth desativado", "Ative o Bluetooth para procurar dispositivos", Icons.bluetooth_disabled)
-                                  : esps.isEmpty
-                                      ? deviceWarning("Nenhum dispositivo encontrado", "Tente aproximar o dispositivo do celular e verifique se ele está ligado", Icons.phonelink_off)
-                                      : ListView.builder(
-                                          itemCount: esps.length,
-                                          itemBuilder: (context, index) {
-                                            final esp = esps[index];
-                                            return ListTile(
-                                              leading: Container(
-                                                width: 40,
-                                                height: 40,
-                                                decoration: BoxDecoration(
-                                                  shape: BoxShape.circle,
-                                                  color: Theme.of(context).primaryColorLight,
-                                                ),
-                                                child: getDeviceIcon(esp["type"] ?? "unknown"),
-                                              ),
-                                              title: Text(esp["name"] ?? "Desconhecido"),
-                                              subtitle: Text(getDeviceSubtitle(esp["type"] ?? "unknown")),
-                                              trailing: ElevatedButton.icon(
-                                                style: ElevatedButton.styleFrom(
-                                                  backgroundColor: Theme.of(context).primaryColorLight,
-                                                ),
-                                                icon: esp["isAdded"] == "true" ? const FaIcon(FontAwesomeIcons.linkSlash) : const FaIcon(FontAwesomeIcons.link),
-                                                onPressed: () async {
+                                child: !isBluetoothEnabled
+                                    ? deviceWarning("Bluetooth desativado", "Ative o Bluetooth para procurar dispositivos", Icons.bluetooth_disabled, onTap: () {
+                                        AppSettings.openAppSettings(type: AppSettingsType.bluetooth);
+                                      })
+                                    : esps.isEmpty
+                                        ? deviceWarning("Nenhum dispositivo encontrado", "Tente aproximar o dispositivo do celular e verifique se ele está ligado", Icons.phonelink_off)
+                                        : ListView.builder(
+                                            padding: const EdgeInsets.all(8),
+                                            itemCount: esps.length,
+                                            itemBuilder: (context, index) {
+                                              final esp = esps[index];
+                                              final isAdded = esp["isAdded"] == "true";
+                                              final type = esp["type"] ?? "unknown";
+                                              final name = esp["name"] ?? "Desconhecido";
+
+                                              return InkWell(
+                                                onTap: () {
                                                   setState(() {
-                                                    _configuringEsp = esp;
-                                                    onItemTapped(1);
+                                                    setModalState(() {
+                                                      _configuringEsp = esp;
+                                                      onItemTapped(1);
+                                                    });
                                                   });
                                                 },
-                                                label: Text(esp["isAdded"] == "true" ? "Desconectar" : "Conectar"),
-                                              ),
-                                            );
-                                          },
-                                        ),
-                            ),
+                                                borderRadius: BorderRadius.circular(20),
+                                                child: Container(
+                                                  margin: const EdgeInsets.only(bottom: 14),
+                                                  padding: const EdgeInsets.all(16),
+                                                  decoration: BoxDecoration(
+                                                    color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                                    borderRadius: BorderRadius.circular(20),
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black.withOpacity(0.04),
+                                                        blurRadius: 6,
+                                                        offset: const Offset(2, 4),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Container(
+                                                        width: 56,
+                                                        height: 56,
+                                                        decoration: BoxDecoration(
+                                                          shape: BoxShape.circle,
+                                                          color: LinearGradient(colors: _getButtonColor("on"), begin: Alignment.topLeft, end: Alignment.bottomRight).colors.first,
+                                                        ),
+                                                        child: Center(
+                                                          child: getDeviceIcon(type),
+                                                        ),
+                                                      ),
+                                                      const SizedBox(width: 16),
+
+                                                      Expanded(
+                                                        child: Column(
+                                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                                          children: [
+                                                            Text(
+                                                              name,
+                                                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                                    fontWeight: FontWeight.w600,
+                                                                  ),
+                                                            ),
+                                                            const SizedBox(height: 4),
+                                                            Text(
+                                                              getDeviceSubtitle(type),
+                                                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                                    color: Colors.grey[600],
+                                                                  ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ),
+
+                                                      // Status + seta
+                                                      Column(
+                                                        crossAxisAlignment: CrossAxisAlignment.end,
+                                                        children: [
+                                                          Text(
+                                                            isAdded ? "Conectado" : "Disponível",
+                                                            style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                                                                  color: isAdded ? Theme.of(context).colorScheme.primary : Colors.grey[600],
+                                                                  fontWeight: FontWeight.w500,
+                                                                ),
+                                                          ),
+                                                          const SizedBox(height: 8),
+                                                          const Icon(Icons.chevron_right, color: Colors.grey, size: 22),
+                                                        ],
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              );
+                                            },
+                                          )),
                           ],
                         ),
                       );
                     },
                   ),
                   Container(
-                    padding: const EdgeInsets.all(16.0),
+                    padding: const EdgeInsets.all(20),
                     height: 600,
                     width: double.infinity,
                     child: _wifiError != null && _wifiError!.isNotEmpty
-                        ? deviceWarning("Wi-Fi desativado", "Ative o Wi-Fi para configurar o dispositivo", Icons.wifi_off, onTap: () {
-                            AppSettings.openAppSettings(type: AppSettingsType.wifi);
-                          })
+                        ? deviceWarning(
+                            "Wi-Fi desativado",
+                            "Ative o Wi-Fi para configurar o dispositivo",
+                            Icons.wifi_off,
+                            onTap: () {
+                              AppSettings.openAppSettings(type: AppSettingsType.wifi);
+                            },
+                          )
                         : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Padding(
-                                padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                                child: Row(
-                                  children: [
-                                    IconButton(
-                                      onPressed: () {
-                                        onItemTapped(0);
-                                      },
-                                      icon: Icon(Icons.chevron_left),
+                              // ----- Cabeçalho -----
+                              Row(
+                                children: [
+                                  IconButton(
+                                    onPressed: () {
+                                      onItemTapped(0);
+                                    },
+                                    icon: const Icon(Icons.chevron_left),
+                                    style: IconButton.styleFrom(
+                                      backgroundColor: Colors.grey.withOpacity(0.1),
+                                      shape: const CircleBorder(),
                                     ),
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        color: Theme.of(context).primaryColorLight,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Container(
+                                    width: 56,
+                                    height: 56,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: Theme.of(context).primaryColorLight,
+                                    ),
+                                    child: Center(
+                                      child: getDeviceIcon(
+                                        _configuringEsp?["type"] ?? "unknown",
                                       ),
-                                      child: getDeviceIcon("plug"),
                                     ),
-                                    const SizedBox(width: 8),
-                                    Column(
-                                      mainAxisAlignment: MainAxisAlignment.start,
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          "Barrel Plug",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            fontWeight: FontWeight.bold,
-                                            color: Colors.grey[800],
-                                          ),
+                                          _configuringEsp?["name"] ?? "Dispositivo",
+                                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                         Text(
-                                          "Tomada inteligente",
-                                          style: TextStyle(
-                                            fontSize: 16,
-                                            color: Colors.grey[600],
-                                          ),
+                                          getDeviceSubtitle(_configuringEsp?["type"] ?? "unknown"),
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                color: Colors.grey[600],
+                                              ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                       ],
                                     ),
-                                  ],
-                                ),
+                                  ),
+                                ],
                               ),
+                              const SizedBox(height: 12),
+
                               const Divider(),
+                              const SizedBox(height: 12),
+
+                              // ----- Campos -----
                               TextField(
                                 controller: ssidController,
-                                decoration: const InputDecoration(labelText: "SSID (Nome da Rede Wi-Fi conectada)"),
                                 readOnly: true,
-                                style: TextStyle(color: Colors.grey[700]),
                                 onTap: () {
                                   AppSettings.openAppSettings(type: AppSettingsType.wifi);
                                 },
+                                decoration: InputDecoration(
+                                  labelText: "SSID (Nome da Rede Wi-Fi)",
+                                  prefixIcon: const Icon(Icons.wifi),
+                                ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 16),
+
                               TextField(
                                 controller: passwordController,
                                 obscureText: obscurePassword,
                                 decoration: InputDecoration(
                                   labelText: "Senha do Wi-Fi",
-                                  suffix: GestureDetector(
-                                    onTap: () => setModalState(() {
-                                      obscurePassword = !obscurePassword;
-                                    }),
-                                    child: Icon(
+                                  prefixIcon: const Icon(Icons.lock_outline),
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
                                       obscurePassword ? Icons.visibility : Icons.visibility_off,
                                     ),
+                                    onPressed: () => setModalState(() {
+                                      obscurePassword = !obscurePassword;
+                                    }),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 12),
+                              const SizedBox(height: 16),
+
                               TextField(
                                 controller: accessKeyController,
                                 obscureText: obscureAccessKey,
@@ -555,17 +913,20 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                                 maxLength: 6,
                                 decoration: InputDecoration(
                                   labelText: "Chave de Acesso (6 dígitos)",
-                                  suffix: GestureDetector(
-                                    onTap: () => setModalState(() {
-                                      obscureAccessKey = !obscureAccessKey;
-                                    }),
-                                    child: Icon(
+                                  prefixIcon: const Icon(Icons.key),
+                                  counterText: "",
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
                                       obscureAccessKey ? Icons.visibility : Icons.visibility_off,
                                     ),
+                                    onPressed: () => setModalState(() {
+                                      obscureAccessKey = !obscureAccessKey;
+                                    }),
                                   ),
                                 ),
                               ),
-                              const SizedBox(height: 24),
+                              const SizedBox(height: 12),
+                              // ----- Botão Configurar -----
                               Container(
                                 width: double.infinity,
                                 height: 50,
@@ -583,10 +944,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                                     final password = passwordController.text;
                                     final username = await SessionUtils.getUsername();
                                     final userPass = await SessionUtils.getPassword();
-
                                     final credentials = "$ssid,$password,$username,$userPass";
                                     if (_configuringEsp != null) {
-                                      await connectToDevice(_configuringEsp!["device"], credentials);
+                                      await startDeviceConfig(context, _configuringEsp!["device"], _configuringEsp!["id"], credentials);
                                     }
                                   },
                                   label: const Text("Configurar"),
@@ -600,207 +960,263 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                               ),
                             ],
                           ),
-                  )
+                  ),
                 ],
               ),
             ),
           );
         });
       },
-    );
+    ).whenComplete(() {
+      _modalSetState = null;
+      setState(() {
+        isAdding = false;
+        _scanFuture = null;
+        _configuringEsp = null;
+      });
+    });
   }
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Card(
-              elevation: 10,
-              shadowColor: Colors.grey[200],
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(12),
-                  gradient: getGradient(),
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          FutureBuilder<String>(
-                            future: getMessage(),
-                            builder: (context, snapshot) {
-                              if (snapshot.connectionState == ConnectionState.waiting) {
-                                return const Text("Carregando...", style: TextStyle(fontSize: 16, color: Colors.white));
-                              } else if (snapshot.hasError) {
-                                return Text("Erro: ${snapshot.error}", style: const TextStyle(fontSize: 16, color: Colors.red));
-                              } else {
-                                return Text(snapshot.data ?? "", style: const TextStyle(fontSize: 16, color: Colors.white));
-                              }
-                            },
-                          ),
-                          const Spacer(),
-                          Icon(Icons.location_on_outlined, color: Colors.white),
-                          Text(
-                            weather == null ? "" : weather!.city,
-                            style: const TextStyle(fontSize: 16, color: Colors.white),
-                          ),
-                        ],
-                      ),
-                      weather == null
-                          ? const CircularProgressIndicator(color: Colors.white)
-                          : Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                SvgPicture.asset(
-                                  "assets/${weather?.icon}.svg",
-                                  width: 100,
-                                  semanticsLabel: 'Weather Icon',
-                                ),
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.center,
-                                  children: [
-                                    Text(
-                                      "${weather!.temperature.toInt()}°C",
-                                      style: const TextStyle(fontSize: 45, color: Colors.white, fontWeight: FontWeight.w600),
-                                    ),
-                                    Text(
-                                      "${weather!.temperatureMin.toInt()}°C - ${weather!.temperatureMax.toInt()}°C",
-                                      style: const TextStyle(
-                                        fontSize: 16,
-                                        color: Colors.white,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(width: 28),
-                              ],
+    return Scaffold(
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Card(
+                elevation: 2,
+                shadowColor: Colors.grey[200],
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: getGradient(),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            FutureBuilder<String>(
+                              future: getMessage(),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState == ConnectionState.waiting) {
+                                  return const Loading(color: Colors.white);
+                                } else if (snapshot.hasError) {
+                                  return Text("Erro: ${snapshot.error}", style: const TextStyle(fontSize: 16, color: Colors.red));
+                                } else {
+                                  return Text(snapshot.data ?? "", style: const TextStyle(fontSize: 16, color: Colors.white));
+                                }
+                              },
                             ),
+                            const Spacer(),
+                            Icon(Icons.location_on_outlined, color: Colors.white),
+                            Text(
+                              weather == null ? "" : weather!.city,
+                              style: const TextStyle(fontSize: 16, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                        weather == null
+                            ? const CircularProgressIndicator(color: Colors.white)
+                            : Row(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  SvgPicture.asset(
+                                    "assets/${weather?.icon}.svg",
+                                    width: 100,
+                                    semanticsLabel: 'Weather Icon',
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.center,
+                                    children: [
+                                      Text(
+                                        "${weather!.temperature.toInt()}°C",
+                                        style: const TextStyle(fontSize: 45, color: Colors.white, fontWeight: FontWeight.w600),
+                                      ),
+                                      Text(
+                                        "${weather!.temperatureMin.toInt()}°C - ${weather!.temperatureMax.toInt()}°C",
+                                        style: const TextStyle(
+                                          fontSize: 16,
+                                          color: Colors.white,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(width: 28),
+                                ],
+                              ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.03),
+                        blurRadius: 3,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        Icons.devices_other_rounded,
+                        color: Theme.of(context).primaryColorLight,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        "Dispositivos",
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                              color: Colors.grey[800],
+                              fontSize: 16,
+                            ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        style: IconButton.styleFrom(
+                          backgroundColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: () {
+                          if (!isAdding) {
+                            onAddDevice();
+                          }
+                        },
+                        icon: Icon(Icons.add_rounded, color: Theme.of(context).primaryColorLight, size: 20),
+                      ),
                     ],
                   ),
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Row(
-                children: [
-                  Text(
-                    "Dispositivos",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.grey[800],
-                    ),
-                  ),
-                  IconButton.outlined(
-                    style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(30),
-                      ),
-                      side: BorderSide(width: 2, color: Theme.of(context).primaryColorLight),
-                    ),
-                    onPressed: isAdding || isScanning
-                        ? null
-                        : () {
-                            onAddDevice();
-                          },
-                    icon: Icon(Icons.add, color: Theme.of(context).primaryColorLight),
-                    iconSize: 15,
-                    alignment: Alignment.center,
-                    constraints: const BoxConstraints(),
-                  ),
-                ],
-              ),
-            ),
-            isLoadingDevices
-                ? const Center(child: CircularProgressIndicator())
-                : Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: devices.isEmpty
-                        ? [
-                            noDevice(onTap: () {
-                              onAddDevice();
-                            })
-                          ]
-                        : devices.map((device) {
-                            bool hasAction = device["actions"] != null && device["actions"].isNotEmpty;
-
-                            return SizedBox(
-                              width: MediaQuery.of(context).size.width / 2 - 24, // Ajusta para 2 colunas
-                              child: Card(
-                                elevation: 10,
-                                shadowColor: Colors.grey[200],
+              const SizedBox(height: 10),
+              isLoadingDevices
+                  ? const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Center(child: Loading(mensagem: "Carregando dispositivos")),
+                    )
+                  : LayoutBuilder(
+                      builder: (context, constraints) {
+                        if (devices.isEmpty) {
+                          return SizedBox(
+                            width: double.infinity,
+                            child: noDevice(
+                              onTap: () {
+                                onAddDevice();
+                              },
+                            ),
+                          );
+                        }
+                        return GridView.builder(
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 0.85,
+                          ),
+                          itemCount: devices.isEmpty ? 1 : devices.length,
+                          itemBuilder: (context, index) {
+                            final device = devices[index];
+                            return Card(
+                              elevation: 2,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(20),
+                                  gradient: LinearGradient(
+                                    colors: [Colors.white, Colors.grey[200]!],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  ),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.05),
+                                      blurRadius: 10,
+                                      offset: const Offset(0, 2),
+                                    )
+                                  ],
+                                ),
                                 child: Padding(
                                   padding: const EdgeInsets.all(16.0),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.center,
+                                    mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Row(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Container(
-                                            width: 20,
-                                            height: 20,
-                                            decoration: BoxDecoration(
-                                              shape: BoxShape.rectangle,
-                                              color: Theme.of(context).primaryColorLight,
-                                              borderRadius: BorderRadius.circular(8),
-                                            ),
-                                            child: Icon(_getIcon(device["icon"]), color: Colors.white, size: 12),
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Expanded(
-                                            child: Text(device["name"], overflow: TextOverflow.ellipsis),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 10),
-                                      if (hasAction)
-                                        Container(
-                                          decoration: BoxDecoration(
-                                            gradient: LinearGradient(
-                                              colors: _getButtonColor(device["props"]["state"]),
-                                              begin: Alignment.topLeft,
-                                              end: Alignment.bottomRight,
-                                            ),
-                                            borderRadius: BorderRadius.circular(12),
-                                          ),
-                                          child: IconButton(
-                                            iconSize: 80,
-                                            color: Colors.transparent,
-                                            style: ButtonStyle(
-                                              backgroundColor: MaterialStateProperty.all(Colors.transparent),
-                                            ),
-                                            icon: const Icon(Icons.power_settings_new, color: Colors.white),
-                                            onPressed: () {
-                                              final action = device["actions"].firstWhere(
-                                                (a) => a["type"] == "switch",
-                                                orElse: () => null,
-                                              );
-                                              if (action != null) {
-                                                String route = action["route"];
-                                                String externalPort = device["external_port"].toString();
-                                                _toggleDevice(externalPort, route, devices.indexOf(device));
-                                              }
-                                            },
+                                      Expanded(
+                                        child: Text(
+                                          device.name,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            fontWeight: FontWeight.w400,
+                                            fontSize: 16,
                                           ),
                                         ),
+                                      ),
+                                      Center(
+                                        child: Container(
+                                          width: 110,
+                                          height: 110,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(10),
+                                            boxShadow: [
+                                              BoxShadow(
+                                                color: _getButtonColor(device.state)[1].withOpacity(0.4),
+                                                blurRadius: 15,
+                                                spreadRadius: 0,
+                                                offset: const Offset(0, 5),
+                                              )
+                                            ],
+                                          ),
+                                          child: Material(
+                                            color: Colors.transparent,
+                                            child: InkWell(
+                                                onTap: () {
+                                                  _toggleDevice(device);
+                                                },
+                                                borderRadius: BorderRadius.circular(10),
+                                                child: AnimatedGradientButton(
+                                                  stateOn: device.state == 'on',
+                                                  icon: getDeviceIcon(device.type, returnData: true),
+                                                )),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 10),
+                                      Center(
+                                        child: _statusDevice(device),
+                                      )
                                     ],
                                   ),
                                 ),
                               ),
                             );
-                          }).toList(),
-                  )
-          ],
+                          },
+                        );
+                      },
+                    ),
+            ],
+          ),
         ),
       ),
     );

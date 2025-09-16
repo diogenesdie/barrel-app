@@ -87,6 +87,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "light";
     } else if (ssid.contains("SWITCH")) {
       return "switch";
+    } else if (ssid.contains("TRIGGER")) {
+      return "trigger";
     }
 
     return "unknown";
@@ -99,6 +101,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "Smart Light";
     } else if (ssid.contains("SWITCH")) {
       return "Smart Switch";
+    } else if (ssid.contains("TRIGGER")) {
+      return "Smart Trigger";
     }
 
     return "Unknown";
@@ -112,6 +116,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
         return Icon(Icons.lightbulb);
       case "switch":
         return Icon(Icons.switch_right);
+      case "trigger":
+        return Icon(Icons.bolt);
       default:
         return Icon(Icons.device_hub);
     }

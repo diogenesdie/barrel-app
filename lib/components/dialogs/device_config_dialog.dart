@@ -15,7 +15,8 @@ class DeviceConfigDialog extends StatefulWidget {
   State<DeviceConfigDialog> createState() => _DeviceConfigDialogState();
 }
 
-class _DeviceConfigDialogState extends State<DeviceConfigDialog> with TickerProviderStateMixin {
+class _DeviceConfigDialogState extends State<DeviceConfigDialog>
+    with TickerProviderStateMixin {
   String currentMessage = "";
   bool finished = false;
   IconData currentIcon = FontAwesomeIcons.microchip;
@@ -70,9 +71,9 @@ class _DeviceConfigDialogState extends State<DeviceConfigDialog> with TickerProv
   IconData _getIconForStep(String msg) {
     if (msg.toLowerCase().contains("conectando")) {
       return FontAwesomeIcons.bluetoothB;
-    } else if (msg.toLowerCase().contains("credenciais")) {
+    } else if (msg.toLowerCase().contains("wi-fi")) {
       return FontAwesomeIcons.wifi;
-    } else if (msg.toLowerCase().contains("ip")) {
+    } else if (msg.toLowerCase().contains("dispositivo")) {
       return FontAwesomeIcons.networkWired;
     } else if (msg.toLowerCase().contains("conclu")) {
       return FontAwesomeIcons.checkCircle;
@@ -90,22 +91,25 @@ class _DeviceConfigDialogState extends State<DeviceConfigDialog> with TickerProv
   Widget build(BuildContext context) {
     final progress = (currentStepIndex + 1) / widget.steps.length;
 
+    // gradient reutilizável
+    final gradient = LinearGradient(
+      colors: [
+        const Color.fromARGB(255, 220, 179, 76),
+        Theme.of(context).primaryColor,
+      ],
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+    );
+
     return WillPopScope(
       onWillPop: () async => false,
       child: Dialog(
         insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         child: Container(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                Color.fromARGB(255, 220, 179, 76),
-                Theme.of(context).primaryColor,
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: const BorderRadius.all(Radius.circular(20)),
+          decoration: const BoxDecoration(
+            color: Colors.white, // fundo branco
+            borderRadius: BorderRadius.all(Radius.circular(20)),
           ),
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -113,14 +117,19 @@ class _DeviceConfigDialogState extends State<DeviceConfigDialog> with TickerProv
             children: [
               ScaleTransition(
                 scale: _pulse,
-                child: AnimatedSwitcher(
-                  duration: const Duration(milliseconds: 400),
-                  transitionBuilder: (child, anim) => ScaleTransition(scale: anim, child: child),
-                  child: FaIcon(
-                    currentIcon,
-                    key: ValueKey(currentIcon),
-                    size: 60,
-                    color: Colors.white,
+                child: ShaderMask(
+                  shaderCallback: (bounds) =>
+                      gradient.createShader(bounds), // gradient nos ícones
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    transitionBuilder: (child, anim) =>
+                        ScaleTransition(scale: anim, child: child),
+                    child: FaIcon(
+                      currentIcon,
+                      key: ValueKey(currentIcon),
+                      size: 60,
+                      color: Colors.white, // necessário pro ShaderMask
+                    ),
                   ),
                 ),
               ),
@@ -143,20 +152,29 @@ class _DeviceConfigDialogState extends State<DeviceConfigDialog> with TickerProv
                   style: const TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.w500,
-                    color: Colors.white,
+                    color: Colors.black, // texto preto
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(height: 30),
-              // Barra de progresso
+              // Barra de progresso com gradient
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 8,
-                  backgroundColor: Colors.white.withOpacity(0.2),
-                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).primaryColorLight),
+                child: Container(
+                  height: 8,
+                  decoration: BoxDecoration(
+                    gradient: gradient,
+                  ),
+                  child: FractionallySizedBox(
+                    alignment: Alignment.centerLeft,
+                    widthFactor: progress,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        gradient: gradient,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ],

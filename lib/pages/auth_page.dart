@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/models/device_repository.dart';
+import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
 enum AuthMode { escolha, login, registro, esqueceu }
@@ -69,7 +71,7 @@ class GradientButton extends StatelessWidget {
   }
 }
 
-const String _loginUrl = "$BASE_API_URL/auth/v1/login";
+const String _loginUrl = "$BASE_API_AUTH_URL/login";
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -99,6 +101,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
+
+    _checkExistingSession();
 
     Future.delayed(const Duration(milliseconds: 200), () {
       setState(() => _showLogo = true);
@@ -135,6 +139,31 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  Future<void> _checkExistingSession() async {
+    final token = await SessionUtils.getToken();
+    final expiresAtDateTime = await SessionUtils.getExpiresAt();
+
+    if (token != null && expiresAtDateTime != null && DateTime.now().isBefore(expiresAtDateTime)) {
+      final now = DateTime.now().millisecondsSinceEpoch;
+      final expiresAt = expiresAtDateTime.millisecondsSinceEpoch;
+
+      if (token.isNotEmpty && now < expiresAt) {
+        if (!mounted) return;
+        await _goHome();
+      } else {
+        await SessionUtils.clearSession();
+      }
+    }
+  }
+
+  Future<void> syncData() async {
+    final groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
+    final deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
+
+    await groupRepo.syncGroupsGet();
+    await deviceRepo.syncDevicesGet();
+  }
+
   Future<void> _goHome() async {
     if (!mounted) return;
     Navigator.of(context).pushReplacementNamed('/home');
@@ -148,6 +177,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
 
     setState(() => _loading = true);
     try {
+      print("POST $_loginUrl");
       final resp = await http
           .post(
             Uri.parse(_loginUrl),
@@ -166,6 +196,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
           await SessionUtils.saveSession(body['data'], password);
 
           _showSnack('Login realizado com sucesso!');
+
+          // await syncData();
           await _goHome();
         }
       } else {

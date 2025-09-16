@@ -32,12 +32,10 @@ class MqttService {
 
   Future<void> connect({
     required String clientId,
-    String? username,
-    String? password,
   }) async {
     _clientId = clientId;
-    _username = username;
-    _password = password;
+    _username = await SessionUtils.getUsername();
+    _password = await SessionUtils.getPassword();
 
     if (_connected) return;
 
@@ -48,7 +46,7 @@ class MqttService {
     client.connectionMessage = connMessage;
 
     try {
-      await client.connect(username, password);
+      await client.connect(_username, _password);
     } catch (e) {
       print('⚠️ Erro de conexão: $e');
       disconnect();
@@ -85,8 +83,6 @@ class MqttService {
         print("⚠️ Não conectado, tentando reconectar ($attempt/3)...");
         await connect(
           clientId: _clientId ?? "flutter_${DateTime.now().millisecondsSinceEpoch}",
-          username: _username,
-          password: _password,
         );
       }
 
@@ -108,5 +104,26 @@ class MqttService {
 
     print("🚨 Falha ao enviar mensagem após 3 tentativas");
     return false;
+  }
+
+  void subscribe(String id) async {
+    String? username = await SessionUtils.getUsername();
+
+    if (username == null) {
+      print("🚨 Usuário não autenticado");
+      return;
+    }
+
+    final topic = "users/$username/$id/status";
+    print("🔔 Inscrevendo em: $topic");
+    client.subscribe(topic, MqttQos.atLeastOnce);
+  }
+
+  void listen(void Function(String topic, String payload) onMessage) {
+    client.updates?.listen((events) {
+      final recMess = events.first.payload as MqttPublishMessage;
+      final payload = MqttPublishPayload.bytesToStringAsString(recMess.payload.message);
+      onMessage(events.first.topic, payload);
+    });
   }
 }

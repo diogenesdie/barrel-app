@@ -303,8 +303,8 @@ class _PerfilPageState extends State<PerfilPage> {
                                 SizedBox(
                                   width: double.infinity,
                                   child: OutlinedButton(
-                                    onPressed: () {
-                                      SessionUtils.clearSession();
+                                    onPressed: () async {
+                                      await SessionUtils.clearSession();
                                       Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
                                     },
                                     style: OutlinedButton.styleFrom(

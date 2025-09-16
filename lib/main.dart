@@ -2,8 +2,8 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device_repository.dart';
+import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/pages/home_page.dart';
 import 'package:smart_home/pages/auth_page.dart';
 
@@ -25,10 +25,8 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await DeviceRepository.initHive();
+  await GroupRepository.initHive();
 
-  DeviceRepository(apiBaseUrl: BASE_API_URL);
-
-  // await repo.syncDevices();
   runApp(const SmartHomeApp());
 }
 

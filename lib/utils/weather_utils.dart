@@ -66,14 +66,14 @@ Future<String> getMessage() async {
   }
 }
 
-String getWeatherIconByCode(int weathercode, bool isDay) {
+String getWeatherIconByCode(int weathercode, bool isNight) {
   switch (weathercode) {
     case 0: // clear
-      return 'clear-${isDay ? 'day' : 'night'}';
+      return 'clear-${isNight ? 'night' : 'day'}';
     case 1: // partly cloudy
-      return 'partly-cloudy-${isDay ? 'day' : 'night'}';
+      return 'partly-cloudy-${isNight ? 'night' : 'day'}';
     case 2: // fog
-      return 'fog-${isDay ? 'day' : 'night'}';
+      return 'fog-${isNight ? 'night' : 'day'}';
     case 3: // drizzle
       return 'drizzle';
     case 4: // freezing drizzle
@@ -93,7 +93,7 @@ String getWeatherIconByCode(int weathercode, bool isDay) {
     case 12: // thunderstorm hail
       return 'extreme-thunderstorm';
     default:
-      return 'clear-${isDay ? 'day' : 'night'}';
+      return 'clear-${isNight ? 'night' : 'day'}';
   }
 }
 
@@ -108,7 +108,7 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
   if (cachedData != null && cacheTimestamp != null && (currentTime - cacheTimestamp < cacheDuration)) {
     final jsonMap = jsonDecode(cachedData);
     final weather = IWeather.fromJson(jsonMap);
-    weather.city = await getCityName(latitude, longitude) ?? "Cidade não encontrada";
+    weather.city = await getCityName(latitude, longitude) ?? "Em casa?";
     return weather;
   }
 
@@ -137,7 +137,7 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
       }));
 
   final weather = getWeatherData(currentHour, response);
-  weather.city = await getCityName(latitude, longitude) ?? "Cidade não encontrada";
+  weather.city = await getCityName(latitude, longitude) ?? "Em casa?";
 
   prefs.setString('weather_data', jsonEncode(weather.toJson()));
   prefs.setInt('weather_timestamp', currentTime);
@@ -172,7 +172,7 @@ IWeather getWeatherData(int currentHour, IWeatherResponse response) {
     temperatureMax: response.temperature2mMax,
     weathercode: currentWeatherCode,
     day: getDayOfWeek(DateTime.now().weekday),
-    icon: getWeatherIconByCode(currentWeatherCode, currentHour < 18),
+    icon: getWeatherIconByCode(currentWeatherCode, currentHour >= 18),
     city: "",
     next3Days: next3Days,
   );

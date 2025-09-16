@@ -22,7 +22,6 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
   late final List<Widget> _pages;
-  final String _commKey = "autoProtocol";
 
   bool _autoProtocol = true;
 
@@ -58,7 +57,7 @@ class _HomePageState extends State<HomePage> {
     }
 
     final prefs = await SharedPreferences.getInstance();
-    final savedMode = prefs.getBool(_commKey);
+    final savedMode = prefs.getBool(COMM_KEY);
     if (savedMode != null) {
       setState(() {
         _autoProtocol = savedMode;
@@ -68,7 +67,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _saveCommMode(bool value) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_commKey, value);
+    await prefs.setBool(COMM_KEY, value);
   }
 
   void getDevicesStates(List<dynamic> devicesParam) async {
@@ -202,7 +201,7 @@ class _HomePageState extends State<HomePage> {
               ),
               isSelected: _selectedIndex == 0,
             ),
-            label: 'Home',
+            label: 'Ínicio',
           ),
           BottomNavigationBarItem(
             icon: GradientIcon(

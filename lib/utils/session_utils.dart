@@ -22,21 +22,37 @@ class SessionUtils {
   }
 
   static Future<String?> getToken() async {
-    return await _storage.read(key: _kToken);
+    try {
+      return await _storage.read(key: _kToken);
+    } catch (e) {
+      return null;
+    }
   }
 
   static Future<Map<String, dynamic>?> getUser() async {
-    final data = await _storage.read(key: _kUser);
-    if (data == null) return null;
-    return jsonDecode(data) as Map<String, dynamic>;
+    try {
+      final data = await _storage.read(key: _kUser);
+      if (data == null) return null;
+      return jsonDecode(data) as Map<String, dynamic>;
+    } catch (e) {
+      return null;
+    }
   }
 
   static Future<String?> getUsername() async {
-    return await _storage.read(key: _kUsername);
+    try {
+      return await _storage.read(key: _kUsername);
+    } catch (e) {
+      return null;
+    }
   }
 
   static Future<String?> getPassword() async {
-    return await _storage.read(key: _kPassword);
+    try {
+      return await _storage.read(key: _kPassword);
+    } catch (e) {
+      return null;
+    }
   }
 
   static Future<DateTime?> getExpiresAt() async {

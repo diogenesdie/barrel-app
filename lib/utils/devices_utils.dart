@@ -1,39 +1,74 @@
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
-String getDeviceType(String ssid) {
-  if (ssid.contains("PLUG")) {
+String getDeviceType(String id) {
+  if (id.contains("PLUG")) {
     return "plug";
-  } else if (ssid.contains("LIGHT")) {
+  } else if (id.contains("LIGHT")) {
     return "light";
-  } else if (ssid.contains("SWITCH")) {
+  } else if (id.contains("SWITCH")) {
     return "switch";
+  } else if (id.contains("TRIGGER")) {
+    return "trigger";
   }
 
   return "unknown";
 }
 
-String getDeviceName(String ssid) {
-  if (ssid.contains("PLUG")) {
+String getDeviceName(String id) {
+  if (id.contains("PLUG")) {
     return "Barrel Plug";
-  } else if (ssid.contains("LIGHT")) {
+  } else if (id.contains("LIGHT")) {
     return "Barrel Light";
-  } else if (ssid.contains("SWITCH")) {
+  } else if (id.contains("SWITCH")) {
     return "Barrel Switch";
+  } else if (id.contains("TRIGGER")) {
+    return "Barrel Trigger";
   }
 
   return "Unknown";
 }
 
-Icon getDeviceIcon(String type, {Color color = Colors.white}) {
+dynamic getDeviceIcon(String type, {Color color = Colors.white, bool returnData = false}) {
   switch (type) {
     case "plug":
-      return Icon(Icons.power, color: color);
+      return returnData ? FontAwesomeIcons.plug : Icon(FontAwesomeIcons.plug, color: color);
+    case "lightbulb":
     case "light":
-      return Icon(Icons.lightbulb, color: color);
+      return returnData ? FontAwesomeIcons.lightbulb : Icon(FontAwesomeIcons.lightbulb, color: color);
     case "switch":
-      return Icon(Icons.power_settings_new_rounded, color: color);
+      return returnData ? FontAwesomeIcons.powerOff : Icon(FontAwesomeIcons.powerOff, color: color);
+    case "trigger":
+      return returnData ? FontAwesomeIcons.bolt : Icon(FontAwesomeIcons.bolt, color: color);
     default:
-      return Icon(Icons.device_hub, color: color);
+      return returnData ? Icons.device_unknown : Icon(Icons.device_unknown, color: color);
+  }
+}
+
+IconData getGroupIconData(String iconName) {
+  switch (iconName) {
+    case "house":
+      return FontAwesomeIcons.house;
+    case "work":
+      return FontAwesomeIcons.briefcase;
+    case "favorite":
+      return FontAwesomeIcons.heart;
+    case "gym":
+      return FontAwesomeIcons.dumbbell;
+    case "school":
+      return FontAwesomeIcons.school;
+    case "cafe":
+      return FontAwesomeIcons.coffee;
+    case "car":
+      return FontAwesomeIcons.car;
+    case "travel":
+      return FontAwesomeIcons.plane;
+    case "garden":
+      return FontAwesomeIcons.seedling;
+    case "pets":
+      return FontAwesomeIcons.paw;
+    default:
+      return FontAwesomeIcons.layerGroup; // ícone padrão
   }
 }
 
@@ -45,6 +80,8 @@ String getDeviceSubtitle(String type) {
       return "Lâmpada Inteligente";
     case "switch":
       return "Interruptor Inteligente";
+    case "trigger":
+      return "Gatilho Inteligente";
     default:
       return "Unknown";
   }
