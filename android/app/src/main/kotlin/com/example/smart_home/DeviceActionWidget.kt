@@ -13,8 +13,15 @@ import java.net.URL
 import kotlin.concurrent.thread
 import org.json.JSONArray
 import org.json.JSONObject
+import org.eclipse.paho.client.mqttv3.IMqttDeliveryToken
+import org.eclipse.paho.client.mqttv3.MqttCallback
+import org.eclipse.paho.client.mqttv3.MqttClient
+import org.eclipse.paho.client.mqttv3.MqttConnectOptions
+import org.eclipse.paho.client.mqttv3.MqttException
+import org.eclipse.paho.client.mqttv3.MqttMessage
+import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-data class Device(val name: String, val route: String)
+data class Device(val name: String, val route: String, val ip: String = "", val id: String = "")
 
 /**
  * Implementation of App Widget functionality.
@@ -37,13 +44,21 @@ class DeviceActionWidget : HomeWidgetProvider() {
         if (intent.action == "TRIGGER_DEVICE_ACTION") {
             val deviceName = intent.getStringExtra("device_name") ?: return
             val route = intent.getStringExtra("device_route") ?: return
+            val ip = intent.getStringExtra("device_ip") ?: ""
+            val deviceId = intent.getStringExtra("device_id") ?: ""
             Log.d("DeviceActionWidget", "Button clicked for device: $deviceName")
             Log.d("DeviceActionWidget", "Route: $route")
 
             val token = "d4f8a7e2-9b3c-4f6a-b5d1-7c9e1a0f2e8c"
-            val url = "http://192.140.33.83:8081$route" // Replace with your host IP
+            val url = "http://$ip$route" // Replace with your host IP
 
             makeHttpGetRequest(url, token)
+
+                // MQTT (novo)
+            val broker = "tcp://barrel.app.br:1883"
+            val topic = "users/sprandel/${deviceId}/command"
+            val payload = "trigger"
+            publishMqttMessage(broker, topic, payload)
         }
     }
 
@@ -69,6 +84,33 @@ class DeviceActionWidget : HomeWidgetProvider() {
             }
         }
     }
+
+    private fun publishMqttMessage(broker: String, topic: String, payload: String) {
+        thread {
+            try {
+                val clientId = "AndroidWidget-" + System.currentTimeMillis()
+                val client = MqttClient(broker, clientId, MemoryPersistence())
+
+                val options = MqttConnectOptions().apply {
+                    isCleanSession = true
+                    userName = "sprandel"      // se necessário
+                    password = "1234".toCharArray() // se necessário
+                }
+
+                client.connect(options)
+                val message = MqttMessage(payload.toByteArray()).apply {
+                    qos = 0
+                }
+
+                client.publish(topic, message)
+                Log.d("DeviceActionWidget", "MQTT message sent to $topic: $payload")
+                client.disconnect()
+            } catch (e: MqttException) {
+                Log.e("DeviceActionWidget", "MQTT publish failed", e)
+            }
+        }
+    }
+
 }
 
 internal fun updateAppWidget(
@@ -86,10 +128,11 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
         for (i in 0 until jsonArray.length()) {
             val deviceObject = jsonArray.getJSONObject(i)
             val name = deviceObject.getString("name")
-            val controlRoute = deviceObject.getJSONArray("actions").getJSONObject(0).getString("route")
+            val ip = deviceObject.getString("ip")
+            val id = deviceObject.getString("device_id")
 
             Log.d("DeviceActionWidget", "Device: $name")
-            deviceList.add(Device(name, controlRoute))
+            deviceList.add(Device(name, "/command", ip, id))
         }
     } catch (e: Exception) {
         e.printStackTrace()
@@ -113,6 +156,8 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
             action = "TRIGGER_DEVICE_ACTION"
             putExtra("device_name", device.name)
             putExtra("device_route", device.route)
+            putExtra("device_ip", device.ip)
+            putExtra("device_id", device.id)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(
