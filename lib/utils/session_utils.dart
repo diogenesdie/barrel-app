@@ -56,9 +56,13 @@ class SessionUtils {
   }
 
   static Future<DateTime?> getExpiresAt() async {
-    final v = await _storage.read(key: _kExpiresAt);
-    if (v == null) return null;
-    return DateTime.tryParse(v);
+    try {
+      final v = await _storage.read(key: _kExpiresAt);
+      if (v == null) return null;
+      return DateTime.tryParse(v);
+    } catch (e) {
+      return null;
+    }
   }
 
   static Future<void> clearSession() async {

@@ -197,7 +197,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
 
           _showSnack('Login realizado com sucesso!');
 
-          // await syncData();
+          await syncData();
           await _goHome();
         }
       } else {

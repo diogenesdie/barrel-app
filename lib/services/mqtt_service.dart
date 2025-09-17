@@ -68,7 +68,7 @@ class MqttService {
     _connected = false;
   }
 
-  Future<bool> publishMessage(String id, String message) async {
+  Future<bool> publishMessage(String deviceId, String message) async {
     String? username = await SessionUtils.getUsername();
 
     if (username == null) {
@@ -76,7 +76,7 @@ class MqttService {
       return false;
     }
 
-    final topic = "users/$username/$id/command";
+    final topic = "users/$username/$deviceId/command";
 
     for (int attempt = 1; attempt <= 3; attempt++) {
       if (!_connected) {
@@ -106,17 +106,22 @@ class MqttService {
     return false;
   }
 
-  void subscribe(String id) async {
-    String? username = await SessionUtils.getUsername();
+  void subscribe(String deviceId) async {
+    try {
+      String? username = await SessionUtils.getUsername();
 
-    if (username == null) {
-      print("🚨 Usuário não autenticado");
-      return;
+      if (username == null) {
+        print("🚨 Usuário não autenticado");
+        return;
+      }
+
+      final topic = "users/$username/$deviceId/status";
+      print("🔔 Inscrevendo em: $topic");
+      client.subscribe(topic, MqttQos.atLeastOnce);
+
+    } catch (e) {
+      print("❌ Erro ao inscrever: $e");
     }
-
-    final topic = "users/$username/$id/status";
-    print("🔔 Inscrevendo em: $topic");
-    client.subscribe(topic, MqttQos.atLeastOnce);
   }
 
   void listen(void Function(String topic, String payload) onMessage) {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
+import 'package:smart_home/pages/checking_session_page.dart';
 import 'package:smart_home/pages/home_page.dart';
 import 'package:smart_home/pages/auth_page.dart';
 
@@ -39,7 +40,8 @@ class SmartHomeApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       initialRoute: '/',
       routes: {
-        '/': (_) => const AuthPage(),
+        '/': (_) => const CheckingSessionPage(),
+        '/auth': (_) => const AuthPage(),
         '/home': (_) => const HomePage(),
       },
       theme: ThemeData(

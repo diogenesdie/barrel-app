@@ -18,8 +18,11 @@ class GroupRepository {
 
   Box<Group> get _box => Hive.box<Group>(_boxName);
 
-  Future<void> addGroup(Group group) async {
+  Future<void> addGroup(Group group, bool sync) async {
     await _box.put(group.id, group);
+    if (sync) {
+      await syncGroupPostPut(group, true);
+    }
   }
 
   Future<Group?> getDefaultGroup() async {
@@ -30,16 +33,13 @@ class GroupRepository {
     }
   }
 
-  Future<void> deleteAll() async {
-    await _box.clear();
-  }
-
   List<Group> getGroups() {
     return _box.values.toList();
   }
 
   Future<void> removeGroup(int id) async {
     await _box.delete(id);
+    await synGroupDelete(id);
   }
 
   Future<void> clearGroups() async {
@@ -48,30 +48,69 @@ class GroupRepository {
 
   Future<void> updateGroup(Group group) async {
     await _box.put(group.id, group);
+    syncGroupPostPut(group, false);
   }
 
-  Future<void> syncGroups() async {
+  Future<void> synGroupDelete(int id) async {
     try {
-      final localGroups = getGroups();
       final token = await SessionUtils.getToken();
 
-      final response = await http.post(
-        Uri.parse("$apiBaseUrl/groups"),
+      if (token == null || token.isEmpty) return;
+
+      final response = await http.delete(
+        Uri.parse("$apiBaseUrl/groups/$id"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
         },
-        body: jsonEncode(localGroups.map((g) => g.toJson()).toList()),
       );
 
       if (response.statusCode == 200) {
-        final List<dynamic> remoteGroups = jsonDecode(response.body);
-        await clearGroups();
-        for (final g in remoteGroups) {
-          await addGroup(Group.fromJson(g));
-        }
+        await removeGroup(id);
       } else {
-        throw Exception("Erro ao sincronizar grupos: ${response.statusCode}");
+        throw Exception("Erro ao deletar grupo: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("Erro na sincronização: $e");
+    }
+  }
+
+  Future<void> syncGroupPostPut(Group group, bool newGroup) async {
+    try {
+      final token = await SessionUtils.getToken();
+
+      if (token == null || token.isEmpty) return;
+
+      final url = newGroup ? "$apiBaseUrl/groups" : "$apiBaseUrl/groups/${group.id}";
+      final method = newGroup ? 'POST' : 'PUT';
+
+      group.toJson();
+      print("Enviando grupo: ${group.toJson()}");
+
+      final response = await (method == 'POST'
+          ? http.post(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(group.toJson()),
+            )
+          : http.put(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(group.toJson()),
+            ));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        final updatedGroup = Group.fromJson(decoded['data']);
+        await addGroup(updatedGroup, false);
+      } else {
+        throw Exception("Erro ao sincronizar grupo: ${response.statusCode}");
       }
     } catch (e) {
       throw Exception("Erro na sincronização: $e");
@@ -81,6 +120,8 @@ class GroupRepository {
   Future<void> syncGroupsGet() async {
     try {
       final token = await SessionUtils.getToken();
+
+      if (token == null || token.isEmpty) return;
 
       final response = await http.get(
         Uri.parse("$apiBaseUrl/groups"),
@@ -96,9 +137,9 @@ class GroupRepository {
         if (decoded is Map<String, dynamic> && decoded['data'] is List) {
           final List<dynamic> remoteGroups = decoded['data'];
 
-          await clearGroups(); // limpa o Hive
+          await clearGroups();
           for (final g in remoteGroups) {
-            await addGroup(Group.fromJson(g));
+            await addGroup(Group.fromJson(g), false);
           }
         } else {
           throw Exception("Formato inesperado da resposta da API");

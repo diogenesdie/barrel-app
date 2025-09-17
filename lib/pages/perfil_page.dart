@@ -305,7 +305,7 @@ class _PerfilPageState extends State<PerfilPage> {
                                   child: OutlinedButton(
                                     onPressed: () async {
                                       await SessionUtils.clearSession();
-                                      Navigator.of(context).pushNamedAndRemoveUntil('/', (r) => false);
+                                      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (r) => false);
                                     },
                                     style: OutlinedButton.styleFrom(
                                       side: BorderSide(color: Theme.of(context).primaryColor),

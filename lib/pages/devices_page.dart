@@ -18,6 +18,45 @@ LinearGradient appGradient(BuildContext context) => LinearGradient(
       end: Alignment.bottomRight,
     );
 
+class _GroupIconButton extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  const _GroupIconButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: Colors.grey.shade100,
+            shape: BoxShape.circle,
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
+              )
+            ],
+          ),
+          child: Icon(icon, size: 18, color: Colors.grey[700]),
+        ),
+      ),
+    );
+  }
+}
+
 class DevicesPage extends StatefulWidget {
   const DevicesPage({super.key});
 
@@ -35,6 +74,8 @@ class _DevicesPageState extends State<DevicesPage> {
   bool isLoadingGroups = false;
 
   Group? groupSelecionado;
+  Set<int> expandedGroups = {};
+  final Map<int, ExpansionTileController> _controllers = {};
 
   @override
   void initState() {
@@ -98,29 +139,67 @@ class _DevicesPageState extends State<DevicesPage> {
     final sortedGroups = [...groups]..sort((a, b) => a.position.compareTo(b.position));
 
     return Scaffold(
+      floatingActionButton: Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: LinearGradient(
+            colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              blurRadius: 6,
+              offset: const Offset(0, 3),
+            )
+          ],
+        ),
+        child: RawMaterialButton(
+          shape: const CircleBorder(),
+          onPressed: () async {
+            final result = await showDialog<Group>(
+              context: context,
+              builder: (_) => CreateGroupDialog(currentGroupCount: groups.length),
+            );
+            if (result != null) {
+              setState(() => groups.add(result));
+              await _groupRepo.addGroup(result, true);
+            }
+          },
+          child: const Icon(Icons.add, color: Colors.white),
+        ),
+      ),
       body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: MediaQuery.of(context).orientation == Orientation.landscape ? 720.0 : 520.0,
-            ),
-            child: _devices.isNotEmpty
-                ? ReorderableListView(
+        child: _devices.isNotEmpty
+            ? Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxWidth: MediaQuery.of(context).orientation == Orientation.landscape ? 720.0 : 520.0,
+                  ),
+                  child: ReorderableListView(
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                    onReorder: (oldIndex, newIndex) async {
+                    onReorder: (oldIndex, newIndex) {
                       if (newIndex > oldIndex) newIndex--;
 
-                      final moved = sortedGroups.removeAt(oldIndex);
-                      sortedGroups.insert(newIndex, moved);
+                      final updated = [...sortedGroups];
+                      final moved = updated.removeAt(oldIndex);
+                      updated.insert(newIndex, moved);
 
-                      // atualiza positions e salva no Hive
-                      for (int i = 0; i < sortedGroups.length; i++) {
-                        sortedGroups[i].position = i;
-                        await _groupRepo.updateGroup(sortedGroups[i]);
+                      for (int i = 0; i < updated.length; i++) {
+                        updated[i].position = i;
                       }
 
                       setState(() {
-                        groups = List.from(sortedGroups);
+                        groups = List.from(updated);
+                      });
+
+                      Future.microtask(() async {
+                        for (final g in updated) {
+                          await _groupRepo.updateGroup(g);
+                        }
                       });
                     },
                     children: [
@@ -134,109 +213,171 @@ class _DevicesPageState extends State<DevicesPage> {
                               setState(() {
                                 device.groupId = group.id;
                               });
+                              _controllers[group.id]?.expand();
                               await _deviceRepo.updateDevice(device);
                             },
                             builder: (context, candidateItems, rejectedItems) {
                               final groupDevices = _devices.where((d) => d.groupId == group.id).toList();
 
+                              _controllers.putIfAbsent(group.id, () => ExpansionTileController());
+
                               return ExpansionTile(
+                                controller: _controllers[group.id]!,
+                                key: ValueKey(group.id),
                                 tilePadding: const EdgeInsets.symmetric(horizontal: 8),
                                 childrenPadding: EdgeInsets.zero,
-                                initiallyExpanded: true,
+                                initiallyExpanded: expandedGroups.contains(group.id),
+                                onExpansionChanged: (expanded) {
+                                  setState(() {
+                                    if (expanded) {
+                                      expandedGroups.add(group.id);
+                                    } else {
+                                      expandedGroups.remove(group.id);
+                                    }
+                                  });
+                                },
                                 title: Row(
                                   children: [
                                     Container(
-                                      width: 36,
-                                      height: 36,
+                                      width: 50,
+                                      height: 50,
                                       decoration: BoxDecoration(
-                                        color: Theme.of(context).primaryColorLight.withOpacity(0.2),
+                                        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
                                         borderRadius: BorderRadius.circular(10),
                                       ),
                                       child: Icon(
                                         getGroupIconData(group.icon),
-                                        color: Theme.of(context).primaryColor,
-                                        size: 20,
+                                        color: Theme.of(context).primaryColorLight,
+                                        size: 25,
                                       ),
                                     ),
                                     const SizedBox(width: 10),
                                     Expanded(
-                                      child: Text(
-                                        group.name,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: FontWeight.w600,
-                                          color: Colors.grey[600],
+                                        child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            Text(
+                                              group.name,
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            if (group.isDefault)
+                                              Badge(
+                                                label: const Text(
+                                                  'Padrão',
+                                                  style: TextStyle(fontSize: 10, color: Colors.white),
+                                                ),
+                                                backgroundColor: Theme.of(context).primaryColorLight,
+                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                              )
+                                          ],
                                         ),
+                                        const SizedBox(height: 2),
+                                        Text(
+                                          "${groupDevices.length} dispositivo${groupDevices.length == 1 ? '' : 's'}",
+                                          style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                                        ),
+                                      ],
+                                    )),
+                                    if (expandedGroups.contains(group.id)) ...[
+                                      _GroupIconButton(
+                                        icon: Icons.edit,
+                                        tooltip: "Editar grupo",
+                                        onTap: () {
+                                          setState(() => groupSelecionado = group);
+                                          _editGroup();
+                                        },
                                       ),
-                                    ),
+                                      const SizedBox(width: 8),
+                                      _GroupIconButton(
+                                        icon: Icons.ios_share_rounded,
+                                        tooltip: "Compartilhar grupo",
+                                        onTap: () {
+                                          ScaffoldMessenger.of(context).showSnackBar(
+                                            const SnackBar(content: Text("Compartilhar grupo (em breve)")),
+                                          );
+                                        },
+                                      ),
+                                    ],
                                   ],
                                 ),
-                                children: groupDevices.isNotEmpty
-                                    ? groupDevices.map((d) {
-                                        return LongPressDraggable<Device>(
-                                          data: d,
-                                          feedback: Material(
-                                            color: Colors.transparent,
-                                            child: Opacity(
-                                              opacity: 0.7,
-                                              child: SizedBox(
-                                                width: screenWidth - 32,
-                                                child: _DeviceCard(
-                                                  device: d,
-                                                  onFavorite: () {},
-                                                  onOpen: () {},
+                                children: [
+                                  ...(groupDevices.isNotEmpty
+                                      ? groupDevices.map((d) {
+                                          return LongPressDraggable<Device>(
+                                            data: d,
+                                            feedback: Material(
+                                              color: Colors.transparent,
+                                              child: Opacity(
+                                                opacity: 0.7,
+                                                child: SizedBox(
+                                                  width: screenWidth - 32,
+                                                  child: _DeviceCard(
+                                                    device: d,
+                                                    onFavorite: () {},
+                                                    onOpen: () {},
+                                                  ),
                                                 ),
                                               ),
                                             ),
-                                          ),
-                                          childWhenDragging: Opacity(
-                                            opacity: 0.4,
-                                            child: _DeviceCard(
-                                              device: d,
-                                              onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
-                                              onOpen: () {},
+                                            childWhenDragging: Opacity(
+                                              opacity: 0.4,
+                                              child: _DeviceCard(
+                                                device: d,
+                                                onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
+                                                onOpen: () {},
+                                              ),
                                             ),
-                                          ),
-                                          child: Padding(
-                                            padding: const EdgeInsets.symmetric(vertical: 4),
-                                            child: _DeviceCard(
-                                              device: d,
-                                              onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
-                                              onOpen: () async {
-                                                final updated = await Navigator.push<Device>(
-                                                  context,
-                                                  MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
-                                                );
-                                                if (updated != null) {
-                                                  setState(() {
-                                                    final idx = _devices.indexWhere((e) => e.id == updated.id);
-                                                    if (idx >= 0) _devices[idx] = updated;
-                                                  });
-                                                }
-                                              },
+                                            child: Padding(
+                                              padding: const EdgeInsets.symmetric(vertical: 4),
+                                              child: _DeviceCard(
+                                                device: d,
+                                                onFavorite: () {
+                                                  setState(() => d.isFavorite = !d.isFavorite);
+                                                  _deviceRepo.updateDevice(d);
+                                                },
+                                                onOpen: () async {
+                                                  final updated = await Navigator.push<Device>(
+                                                    context,
+                                                    MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
+                                                  );
+                                                  if (updated != null) {
+                                                    setState(() {
+                                                      final idx = _devices.indexWhere((e) => e.id == updated.id);
+                                                      if (idx >= 0) _devices[idx] = updated;
+                                                    });
+                                                  }
+                                                },
+                                              ),
                                             ),
-                                          ),
-                                        );
-                                      }).toList()
-                                    : [
-                                        deviceWarning(
-                                          "Nenhum dispositivo neste grupo",
-                                          "Arraste dispositivos para cá ou altere ao editar um dispositivo.",
-                                          FontAwesomeIcons.boxOpen,
-                                        ),
-                                      ],
+                                          );
+                                        }).toList()
+                                      : [
+                                          deviceWarning(
+                                            "Nenhum dispositivo neste grupo",
+                                            "Arraste dispositivos para cá ou altere ao editar um dispositivo.",
+                                            FontAwesomeIcons.boxOpen,
+                                          )
+                                        ])
+                                ],
                               );
                             },
                           ),
                         )
                     ],
-                  )
-                : Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: noDevice(),
                   ),
-          ),
-        ),
+                ),
+              )
+            : Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: noDevice(),
+              ),
       ),
     );
   }
@@ -476,7 +617,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     );
 
     if (result != null) {
-      await _groupRepo.addGroup(result);
+      await _groupRepo.addGroup(result, true);
       setState(() {
         _groups.add(result);
         _selectedGroupId = result.id;

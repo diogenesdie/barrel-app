@@ -298,6 +298,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
   Future<void> _loadDevices() async {
     setState(() => isLoadingDevices = true);
+    await Future.delayed(const Duration(milliseconds: 500));
 
     try {
       final loadedDevices = _deviceRepo.getDevices();
@@ -312,17 +313,15 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       );
 
       for (var d in loadedDevices) {
-        mqtt.subscribe(d.id);
+        mqtt.subscribe(d.deviceId);
       }
 
-      // Escuta alterações
       mqtt.listen((topic, payload) async {
-        // Esperado: "on,192.168.103.4"
         final parts = payload.split(',');
         if (parts.length == 2) {
           final newState = parts[0];
           final newIp = parts[1];
-          final deviceId = topic.split('/').elementAt(2); // users/{user}/{deviceId}/status
+          final deviceId = topic.split('/').elementAt(2);
 
           setState(() {
             devices = devices.map((dev) {
@@ -336,7 +335,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
             }).toList();
           });
 
-          // Atualiza também no repositório
           final updatedDevice = devices.firstWhere((d) => d.id == deviceId);
           await _deviceRepo.updateDevice(updatedDevice);
         }
@@ -359,7 +357,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   Widget _statusDevice(Device device) {
     if (device.type == "trigger") {
       return SequentialTextSwitcher(
-        text: device.state.toUpperCase() == "ON" ? "Disparado" : "",
+        text: device.state.toUpperCase() == "ON" ? "Disparado" : "Clique para disparar"
       );
     } else {
       return SequentialTextSwitcher(
@@ -415,7 +413,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       }
       if (!ok) {
         final mqtt = MqttService();
-        ok = await mqtt.publishMessage(device.id, newState);
+        ok = await mqtt.publishMessage(device.deviceId, newState);
       }
     } else {
       // MODO LOCAL → HTTP
@@ -546,8 +544,10 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                 print("Chave e IV: $chave_iv");
               }
 
+              //generate random id integer
               final newDevice = Device(
-                id: deviceId,
+                id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+                deviceId: deviceId,
                 name: getDeviceName(deviceId),
                 type: getDeviceType(deviceId),
                 ip: ip,
@@ -557,7 +557,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                 communicationMode: "auto",
                 groupId: defaultGroup.id,
               );
-              await _deviceRepo.addDevice(newDevice);
+              await _deviceRepo.addDevice(newDevice, true);
 
               // Etapa final
               updateStep("Configuração concluída!");
@@ -977,6 +977,84 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     });
   }
 
+  Widget _buildDeviceCard(Device device) {
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+      ),
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Colors.white, Colors.grey[200]!],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 2),
+            )
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Text(
+                  device.name,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w400,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              Center(
+                child: Container(
+                  width: 110,
+                  height: 110,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(10),
+                    boxShadow: [
+                      BoxShadow(
+                        color: _getButtonColor(device.state)[1].withOpacity(0.4),
+                        blurRadius: 15,
+                        spreadRadius: 0,
+                        offset: const Offset(0, 5),
+                      )
+                    ],
+                  ),
+                  child: Material(
+                    color: Colors.transparent,
+                    child: InkWell(
+                        onTap: () {
+                          _toggleDevice(device);
+                        },
+                        borderRadius: BorderRadius.circular(10),
+                        child: AnimatedGradientButton(
+                          stateOn: device.state == 'on',
+                          icon: getDeviceIcon(device.type, returnData: true),
+                        )),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Center(
+                child: _statusDevice(device),
+              )
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1124,94 +1202,87 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                             ),
                           );
                         }
-                        return GridView.builder(
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                            childAspectRatio: 0.85,
-                          ),
-                          itemCount: devices.isEmpty ? 1 : devices.length,
-                          itemBuilder: (context, index) {
-                            final device = devices[index];
-                            return Card(
-                              elevation: 2,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(20),
-                              ),
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(20),
-                                  gradient: LinearGradient(
-                                    colors: [Colors.white, Colors.grey[200]!],
-                                    begin: Alignment.topLeft,
-                                    end: Alignment.bottomRight,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.05),
-                                      blurRadius: 10,
-                                      offset: const Offset(0, 2),
-                                    )
-                                  ],
-                                ),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16.0),
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.center,
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Expanded(
-                                        child: Text(
-                                          device.name,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.w400,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ),
-                                      Center(
-                                        child: Container(
-                                          width: 110,
-                                          height: 110,
+                        final grouped = <Group, List<Device>>{};
+                        for (final g in groups) {
+                          grouped[g] = devices.where((d) => d.groupId == g.id).toList();
+                        }
+
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: grouped.entries.map((entry) {
+                            final group = entry.key;
+                            final groupDevices = entry.value;
+
+                            if (groupDevices.isEmpty) {
+                              return const SizedBox.shrink();
+                            }
+
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 24),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Padding(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8.0),
+                                    child: Row(
+                                      children: [
+                                        Container(
+                                          width: 36,
+                                          height: 36,
                                           decoration: BoxDecoration(
+                                            color: Theme.of(context).primaryColorLight.withOpacity(0.1),
                                             borderRadius: BorderRadius.circular(10),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: _getButtonColor(device.state)[1].withOpacity(0.4),
-                                                blurRadius: 15,
-                                                spreadRadius: 0,
-                                                offset: const Offset(0, 5),
-                                              )
-                                            ],
                                           ),
-                                          child: Material(
-                                            color: Colors.transparent,
-                                            child: InkWell(
-                                                onTap: () {
-                                                  _toggleDevice(device);
-                                                },
-                                                borderRadius: BorderRadius.circular(10),
-                                                child: AnimatedGradientButton(
-                                                  stateOn: device.state == 'on',
-                                                  icon: getDeviceIcon(device.type, returnData: true),
-                                                )),
+                                          child: Icon(
+                                            getGroupIconData(group.icon),
+                                            color: Theme.of(context).primaryColorLight,
+                                            size: 20,
                                           ),
                                         ),
-                                      ),
-                                      const SizedBox(height: 10),
-                                      Center(
-                                        child: _statusDevice(device),
-                                      )
-                                    ],
+                                        const SizedBox(width: 10),
+                                        Text(
+                                          group.name,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                            color: Colors.grey[800],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
                                   ),
-                                ),
+                                  const SizedBox(height: 10),
+
+                                  // --- Grade de devices ---
+                                  if (groupDevices.isEmpty)
+                                    Padding(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                                      child: deviceWarning(
+                                        "Nenhum dispositivo neste grupo",
+                                        "Adicione ou mova dispositivos para este grupo",
+                                        FontAwesomeIcons.boxOpen,
+                                      ),
+                                    )
+                                  else
+                                    GridView.builder(
+                                      shrinkWrap: true,
+                                      physics: const NeverScrollableScrollPhysics(),
+                                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                        crossAxisCount: 2,
+                                        crossAxisSpacing: 12,
+                                        mainAxisSpacing: 12,
+                                        childAspectRatio: 0.85,
+                                      ),
+                                      itemCount: groupDevices.length,
+                                      itemBuilder: (context, index) {
+                                        final device = groupDevices[index];
+                                        return _buildDeviceCard(device); // 🔹 usa o mesmo card que já tinha
+                                      },
+                                    ),
+                                ],
                               ),
                             );
-                          },
+                          }).toList(),
                         );
                       },
                     ),

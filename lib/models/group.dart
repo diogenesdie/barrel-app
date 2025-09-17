@@ -33,7 +33,7 @@ class Group extends HiveObject {
       name: json['name'],
       position: json['position'] ?? 0,
       icon: json['icon'] ?? '',
-      isDefault: json['isDefault'] ?? false,
+      isDefault: json['is_default'] ?? false,
     );
   }
 
@@ -54,10 +54,9 @@ class Group extends HiveObject {
   }
 
   Map<String, dynamic> toJson() => {
-        "id": id,
         "name": name,
         "position": position,
         "icon": icon,
-        "isDefault": isDefault,
+        "is_default": isDefault,
       };
 }

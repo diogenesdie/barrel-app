@@ -17,48 +17,51 @@ class DeviceAdapter extends TypeAdapter<Device> {
       for (int i = 0; i < numOfFields; i++) reader.readByte(): reader.read(),
     };
     return Device(
-      id: fields[0] as String,
-      name: fields[1] as String,
-      type: fields[2] as String,
-      ip: fields[3] as String,
-      ivKey: fields[4] as String,
-      state: fields[5] as String,
-      ssid: fields[7] as String,
-      communicationMode: fields[8] as String,
-      groupId: fields[9] as int?,
-      isFavorite: fields[6] as bool,
-      isShared: fields[10] as bool,
-      icon: fields[11] as String,
+      id: fields[0] as int,
+      deviceId: fields[1] as String,
+      name: fields[2] as String,
+      type: fields[3] as String,
+      ip: fields[4] as String,
+      ivKey: fields[5] as String,
+      state: fields[6] as String,
+      ssid: fields[8] as String,
+      communicationMode: fields[9] as String,
+      groupId: fields[10] as int?,
+      isFavorite: fields[7] as bool,
+      isShared: fields[11] as bool,
+      icon: fields[12] as String,
     );
   }
 
   @override
   void write(BinaryWriter writer, Device obj) {
     writer
-      ..writeByte(12)
+      ..writeByte(13)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
-      ..write(obj.name)
+      ..write(obj.deviceId)
       ..writeByte(2)
-      ..write(obj.type)
+      ..write(obj.name)
       ..writeByte(3)
-      ..write(obj.ip)
+      ..write(obj.type)
       ..writeByte(4)
-      ..write(obj.ivKey)
+      ..write(obj.ip)
       ..writeByte(5)
-      ..write(obj.state)
+      ..write(obj.ivKey)
       ..writeByte(6)
-      ..write(obj.isFavorite)
+      ..write(obj.state)
       ..writeByte(7)
-      ..write(obj.ssid)
+      ..write(obj.isFavorite)
       ..writeByte(8)
-      ..write(obj.communicationMode)
+      ..write(obj.ssid)
       ..writeByte(9)
-      ..write(obj.groupId)
+      ..write(obj.communicationMode)
       ..writeByte(10)
-      ..write(obj.isShared)
+      ..write(obj.groupId)
       ..writeByte(11)
+      ..write(obj.isShared)
+      ..writeByte(12)
       ..write(obj.icon);
   }
 

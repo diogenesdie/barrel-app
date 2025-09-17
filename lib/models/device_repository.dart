@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_home/utils/session_utils.dart';
+import 'package:smart_home/utils/widget_utils.dart';
 import 'device.dart';
-import 'group.dart'; // <-- importar o model Group
+import 'group.dart';
 
 class DeviceRepository {
   static const String _boxName = "devicesBox";
@@ -19,8 +21,11 @@ class DeviceRepository {
 
   Box<Device> get _box => Hive.box<Device>(_boxName);
 
-  Future<void> addDevice(Device device) async {
+  Future<void> addDevice(Device device, bool sync) async {
     await _box.put(device.id, device);
+    if (sync) {
+      await syncDevicePostPut(device, true);
+    }
   }
 
   List<Device> getDevices() {
@@ -44,38 +49,102 @@ class DeviceRepository {
 
   Future<void> removeDevice(String id) async {
     await _box.delete(id);
+    await syncDeviceDelete(id);
   }
 
   Future<void> clearDevices() async {
     await _box.clear();
   }
 
-  Future<void> updateDevice(Device device) async {
-    await device.save();
+  Future<void> addOrRemoveToSharedPreferencesWhenFavorite(Device device) async {
+    final prefs = await SharedPreferences.getInstance();
+    final devicesJson = prefs.getString("devices") ?? "[]";
+    final List<dynamic> devicesList = jsonDecode(devicesJson);
+
+    final idStr = device.id.toString();
+    final index = devicesList.indexWhere((d) => d['id'].toString() == idStr);
+
+    if (device.isFavorite) {
+      if (index == -1) {
+        devicesList.add(device.toJsonWithId());
+      } else {
+        devicesList[index] = device.toJsonWithId();
+      }
+    } else {
+      if (index != -1) {
+        devicesList.removeAt(index);
+      }
+    }
+
+    await prefs.setString("devices", jsonEncode(devicesList));
+
+    updateWidget();
   }
 
-  Future<void> syncDevices() async {
-    try {
-      final localDevices = getDevices();
-      final token = await SessionUtils.getToken();
+  Future<void> updateDevice(Device device) async {
+    await _box.put(device.id, device);
+    await addOrRemoveToSharedPreferencesWhenFavorite(device);
+    await syncDevicePostPut(device, false);
+  }
 
-      final response = await http.post(
-        Uri.parse("$apiBaseUrl/devices"),
+  Future<void> syncDeviceDelete(String id) async {
+    try {
+      final token = await SessionUtils.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final response = await http.delete(
+        Uri.parse("$apiBaseUrl/devices/$id"),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer $token",
         },
-        body: jsonEncode(localDevices.map((d) => d.toJson()).toList()),
       );
 
-      if (response.statusCode == 200) {
-        final List<dynamic> remoteDevices = jsonDecode(response.body);
-        await clearDevices();
-        for (final dev in remoteDevices) {
-          await addDevice(Device.fromJson(dev));
+      if (response.statusCode != 200) {
+        throw Exception("Erro ao deletar dispositivo: ${response.statusCode}");
+      }
+    } catch (e) {
+      throw Exception("Erro na sincronização: $e");
+    }
+  }
+
+  Future<void> syncDevicePostPut(Device device, bool newDevice) async {
+    try {
+      final token = await SessionUtils.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final url = newDevice ? "$apiBaseUrl/devices" : "$apiBaseUrl/devices/${device.id}";
+      final method = newDevice ? 'POST' : 'PUT';
+
+      print("Enviando dispositivo: ${device.toJson()}");
+
+      final response = await (method == 'POST'
+          ? http.post(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(device.toJson()),
+            )
+          : http.put(
+              Uri.parse(url),
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer $token",
+              },
+              body: jsonEncode(device.toJson()),
+            ));
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final decoded = jsonDecode(response.body);
+        final updatedDevice = Device.fromJson(decoded['data']);
+        if (updatedDevice.id != device.id) {
+          await _box.delete(device.id);
         }
+        await addDevice(updatedDevice, false);
       } else {
-        throw Exception("Erro ao sincronizar dispositivos: ${response.statusCode}");
+        throw Exception("Erro ao sincronizar dispositivo: ${response.statusCode}");
       }
     } catch (e) {
       throw Exception("Erro na sincronização: $e");
@@ -85,6 +154,7 @@ class DeviceRepository {
   Future<void> syncDevicesGet() async {
     try {
       final token = await SessionUtils.getToken();
+      if (token == null || token.isEmpty) return;
 
       final response = await http.get(
         Uri.parse("$apiBaseUrl/devices"),
@@ -102,7 +172,7 @@ class DeviceRepository {
 
           await clearDevices();
           for (final dev in remoteDevices) {
-            await addDevice(Device.fromJson(dev));
+            await addDevice(Device.fromJson(dev), false);
           }
         } else {
           throw Exception("Formato inesperado da resposta da API");

@@ -5,43 +5,47 @@ part 'device.g.dart';
 @HiveType(typeId: 0)
 class Device extends HiveObject {
   @HiveField(0)
-  String id;
+  int id;
 
   @HiveField(1)
-  String name;
+  String deviceId;
 
   @HiveField(2)
-  String type;
+  String name;
 
   @HiveField(3)
-  String ip;
+  String type;
 
   @HiveField(4)
-  String ivKey;
+  String ip;
 
   @HiveField(5)
-  String state;
+  String ivKey;
 
   @HiveField(6)
-  bool isFavorite = false;
+  String state;
 
   @HiveField(7)
-  String ssid;
+  bool isFavorite = false;
 
   @HiveField(8)
-  String communicationMode; // "auto" ou "local"
+  String ssid;
 
   @HiveField(9)
-  int? groupId;
+  String communicationMode; // "auto" ou "local"
 
   @HiveField(10)
-  bool isShared = false;
+  int? groupId;
 
   @HiveField(11)
+  bool isShared = false;
+
+  @HiveField(12)
   String icon = "";
 
   Device({
     required this.id,
+    required this.deviceId,
     required this.name,
     required this.type,
     required this.ip,
@@ -58,23 +62,25 @@ class Device extends HiveObject {
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
       id: json['id'],
+      deviceId: json['device_id'],
       name: json['name'],
       type: json['type'],
       ip: json['ip'],
-      ivKey: json['ivKey'] ?? '',
+      ivKey: json['iv_key'] ?? '',
       state: json['state'] ?? 'off',
-      isFavorite: json['isFavorite'] ?? false,
+      isFavorite: json['is_favorite'] ?? false,
       ssid: json['ssid'] ?? '',
-      communicationMode: json['communicationMode'] ?? 'auto',
-      groupId: json['groupId'],
-      isShared: json['isShared'] ?? false,
+      communicationMode: json['communication_mode'] ?? 'auto',
+      groupId: json['group_id'],
+      isShared: json['is_shared'] ?? false,
       icon: json['icon'] ?? '',
     );
   }
 
   //copyWith method
   Device copyWith({
-    String? id,
+    int? id,
+    String? deviceId,
     String? name,
     String? type,
     String? ip,
@@ -89,6 +95,7 @@ class Device extends HiveObject {
   }) {
     return Device(
       id: id ?? this.id,
+      deviceId: deviceId ?? this.deviceId,
       name: name ?? this.name,
       type: type ?? this.type,
       ip: ip ?? this.ip,
@@ -104,17 +111,32 @@ class Device extends HiveObject {
   }
 
   Map<String, dynamic> toJson() => {
-        "id": id,
+        "device_id": deviceId,
         "name": name,
         "type": type,
         "ip": ip,
-        "ivKey": ivKey,
+        "iv_key": ivKey,
         "state": state,
-        "isFavorite": isFavorite,
+        "is_favorite": isFavorite,
         "ssid": ssid,
-        "communicationMode": communicationMode,
-        "groupId": groupId,
-        "isShared": isShared,
+        "communication_mode": communicationMode,
+        "group_id": groupId,
+        "is_shared": isShared,
+        "icon": icon,
+      };
+
+    Map<String, dynamic> toJsonWithId() => {
+        "id": id,
+        "device_id": deviceId,
+        "name": name,
+        "ip": ip,
+        "iv_key": ivKey,
+        "state": state,
+        "is_favorite": isFavorite,
+        "ssid": ssid,
+        "communication_mode": communicationMode,
+        "group_id": groupId,
+        "is_shared": isShared,
         "icon": icon,
       };
 }
