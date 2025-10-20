@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_home/utils/widget_utils.dart';
 
 class SessionUtils {
   static const _storage = FlutterSecureStorage();
@@ -72,6 +73,8 @@ class SessionUtils {
     await prefs.remove('coords_timestamp');
     await prefs.remove('latitude');
     await prefs.remove('longitude');
+    await prefs.remove('devices');
+    updateWidget();
 
     await _storage.deleteAll();
   }

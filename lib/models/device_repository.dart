@@ -26,11 +26,11 @@ class DeviceRepository {
     if (sync) {
       await syncDevicePostPut(device, true);
     }
+    await addOrRemoveToSharedPreferencesWhenFavorite(device);
   }
 
   List<Device> getDevices() {
     final devices = _box.values.toList();
-
     final groupBox = Hive.box<Group>("groupsBox");
     final groups = groupBox.values.toList();
 
@@ -47,8 +47,13 @@ class DeviceRepository {
     return devices;
   }
 
-  Future<void> removeDevice(String id) async {
-    await _box.delete(id);
+  Future<void> removeDevice(int id) async {
+    final device = _box.get(id);
+    if (device != null && device.isFavorite) {
+      device.isFavorite = false;
+      await addOrRemoveToSharedPreferencesWhenFavorite(device);
+    }
+
     await syncDeviceDelete(id);
   }
 
@@ -81,16 +86,21 @@ class DeviceRepository {
     updateWidget();
   }
 
-  Future<void> updateDevice(Device device) async {
+  Future<void> updateDevice(Device device, {bool sync = true}) async {
     await _box.put(device.id, device);
     await addOrRemoveToSharedPreferencesWhenFavorite(device);
-    await syncDevicePostPut(device, false);
+    if (sync) {
+      await syncDevicePostPut(device, false);
+    }
   }
 
-  Future<void> syncDeviceDelete(String id) async {
+  Future<void> syncDeviceDelete(int id) async {
     try {
       final token = await SessionUtils.getToken();
-      if (token == null || token.isEmpty) return;
+      if (token == null || token.isEmpty) {
+        await _box.delete(id);
+        return;
+      }
 
       final response = await http.delete(
         Uri.parse("$apiBaseUrl/devices/$id"),
@@ -103,6 +113,8 @@ class DeviceRepository {
       if (response.statusCode != 200) {
         throw Exception("Erro ao deletar dispositivo: ${response.statusCode}");
       }
+
+      await _box.delete(id);
     } catch (e) {
       throw Exception("Erro na sincronização: $e");
     }

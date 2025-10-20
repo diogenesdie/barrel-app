@@ -5,6 +5,7 @@ import 'package:multicast_dns/multicast_dns.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/utils/devices_utils.dart';
 
 class SearchDevicesPage extends StatefulWidget {
   const SearchDevicesPage({super.key});
@@ -89,6 +90,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "switch";
     } else if (ssid.contains("TRIGGER")) {
       return "trigger";
+    } else if (ssid.contains("RF")) {
+      return "rf";
     }
 
     return "unknown";
@@ -103,24 +106,11 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "Smart Switch";
     } else if (ssid.contains("TRIGGER")) {
       return "Smart Trigger";
+    } else if (ssid.contains("RF")) {
+      return "Smart RF Controller";
     }
 
     return "Unknown";
-  }
-
-  Icon _getIcon(String type) {
-    switch (type) {
-      case "plug":
-        return Icon(Icons.power);
-      case "light":
-        return Icon(Icons.lightbulb);
-      case "switch":
-        return Icon(Icons.switch_right);
-      case "trigger":
-        return Icon(Icons.bolt);
-      default:
-        return Icon(Icons.device_hub);
-    }
   }
 
   void discoverDevices() async {
@@ -324,7 +314,7 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
                 final esp = esps[index];
                 return ListTile(
                   enabled: !isScanning && !isAdding,
-                  leading: _getIcon(esp["type"] ?? "unknown"),
+                  leading: Icon(Icons.devices),
                   title: Text(esp["name"] ?? "Desconhecido"),
                   subtitle: Text("IP: ${esp["ip"]}, Porta: ${esp["port"]}"),
                   trailing: Opacity(

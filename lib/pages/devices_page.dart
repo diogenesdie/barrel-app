@@ -3,12 +3,16 @@ import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:smart_home/components/device_warning.dart';
 import 'package:smart_home/components/dialogs/create_group_dialog.dart';
+import 'package:smart_home/components/dialogs/share_device_dialog.dart';
 import 'package:smart_home/components/no_device.dart';
+import 'package:smart_home/components/sharing_notification_widget.dart';
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group.dart';
 import 'package:smart_home/models/group_repository.dart';
+import 'package:smart_home/models/device_share.dart';
+import 'package:smart_home/models/device_share_repository.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 
@@ -73,6 +77,10 @@ class _DevicesPageState extends State<DevicesPage> {
   late GroupRepository _groupRepo;
   bool isLoadingGroups = false;
 
+  late List<DeviceShare> _pendingShares = [];
+  late DeviceShareRepository _shareRepo;
+  bool isLoadingShares = false;
+
   Group? groupSelecionado;
   Set<int> expandedGroups = {};
   final Map<int, ExpansionTileController> _controllers = {};
@@ -82,9 +90,11 @@ class _DevicesPageState extends State<DevicesPage> {
     super.initState();
     _deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
     _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
+    _shareRepo = DeviceShareRepository(apiBaseUrl: BASE_API_URL);
 
     _loadGroups();
     _loadDevices();
+    _loadPendingShares();
   }
 
   Future<void> _loadDevices() async {
@@ -115,6 +125,85 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
+  Future<void> _loadPendingShares() async {
+    setState(() => isLoadingShares = true);
+
+    try {
+      final shares = await _shareRepo.getShares();
+
+      setState(() {
+        _pendingShares = shares.where((share) => share.isPending).toList();
+      });
+    } catch (e) {
+      print("Erro ao carregar compartilhamentos: $e");
+    } finally {
+      setState(() => isLoadingShares = false);
+    }
+  }
+
+  Future<void> _acceptShare(int shareId) async {
+    try {
+      final success = await _shareRepo.acceptShare(shareId);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Compartilhamento aceito com sucesso!"),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+
+        await _deviceRepo.syncDevicesGet();
+        await _groupRepo.syncGroupsGet();
+        await _refreshPage();
+      } else {
+        throw Exception('Falha ao aceitar compartilhamento');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Erro ao aceitar compartilhamento"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _rejectShare(int shareId) async {
+    try {
+      final success = await _shareRepo.revokeShare(shareId);
+      if (success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Compartilhamento recusado"),
+            backgroundColor: Colors.orange,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+        await _refreshPage();
+      } else {
+        throw Exception('Falha ao recusar compartilhamento');
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text("Erro ao recusar compartilhamento"),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _refreshPage() async {
+    await Future.wait([
+      _loadDevices(),
+      _loadGroups(),
+      _loadPendingShares(),
+    ]);
+  }
+
   Future<void> _editGroup() async {
     final updated = await showDialog<Group>(
       context: context,
@@ -125,18 +214,56 @@ class _DevicesPageState extends State<DevicesPage> {
     );
 
     if (updated != null) {
-      await _groupRepo.updateGroup(updated);
-      setState(() {
-        final idx = groups.indexWhere((g) => g.id == updated.id);
-        if (idx >= 0) groups[idx] = updated;
-      });
+      if (updated.position == -1) {
+        await _groupRepo.syncGroupDelete(groupSelecionado!.id);
+        Group? defaultGroup = await _groupRepo.getDefaultGroup();
+        setState(() {
+          groups.removeWhere((g) => g.id == groupSelecionado!.id);
+          for (final d in _devices.where((d) => d.groupId == groupSelecionado!.id)) {
+            d.groupId = defaultGroup?.id ?? 0;
+            _deviceRepo.updateDevice(d);
+          }
+        });
+      } else {
+        await _groupRepo.updateGroup(updated);
+        setState(() {
+          final idx = groups.indexWhere((g) => g.id == updated.id);
+          if (idx >= 0) groups[idx] = updated;
+        });
+      }
+    }
+  }
+
+  Future<void> _shareDevice() async {
+    final result = await showDialog(
+      context: context,
+      builder: (_) => ShareDeviceDialog(),
+    );
+
+    if (result == true) {
+      await _loadPendingShares();
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
+    final sharedDevices = _devices.where((d) => d.isShared).toList();
+
     final sortedGroups = [...groups]..sort((a, b) => a.position.compareTo(b.position));
+
+    if (sharedDevices.isNotEmpty) {
+      sortedGroups.insert(
+        0,
+        Group(
+          id: -999,
+          name: "Compartilhados comigo",
+          icon: "share",
+          position: -1,
+          isDefault: false,
+        ),
+      );
+    }
 
     return Scaffold(
       floatingActionButton: Container(
@@ -179,205 +306,231 @@ class _DevicesPageState extends State<DevicesPage> {
                   constraints: BoxConstraints(
                     maxWidth: MediaQuery.of(context).orientation == Orientation.landscape ? 720.0 : 520.0,
                   ),
-                  child: ReorderableListView(
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-                    onReorder: (oldIndex, newIndex) {
-                      if (newIndex > oldIndex) newIndex--;
-
-                      final updated = [...sortedGroups];
-                      final moved = updated.removeAt(oldIndex);
-                      updated.insert(newIndex, moved);
-
-                      for (int i = 0; i < updated.length; i++) {
-                        updated[i].position = i;
-                      }
-
-                      setState(() {
-                        groups = List.from(updated);
-                      });
-
-                      Future.microtask(() async {
-                        for (final g in updated) {
-                          await _groupRepo.updateGroup(g);
-                        }
-                      });
-                    },
+                  child: Column(
                     children: [
-                      for (final group in sortedGroups)
-                        Theme(
-                          key: ValueKey(group.id),
-                          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                          child: DragTarget<Device>(
-                            onWillAccept: (data) => data != null && data.groupId != group.id,
-                            onAccept: (device) async {
-                              setState(() {
-                                device.groupId = group.id;
-                              });
-                              _controllers[group.id]?.expand();
-                              await _deviceRepo.updateDevice(device);
-                            },
-                            builder: (context, candidateItems, rejectedItems) {
-                              final groupDevices = _devices.where((d) => d.groupId == group.id).toList();
+                      // Widget de notificação de compartilhamentos pendentes
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: SharingNotificationWidget(
+                          pendingShares: _pendingShares,
+                          onAccept: _acceptShare,
+                          onReject: _rejectShare,
+                        ),
+                      ),
+                      // Lista reordenável de grupos
+                      Expanded(
+                        child: ReorderableListView(
+                          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                          onReorder: (oldIndex, newIndex) {
+                            if (newIndex > oldIndex) newIndex--;
 
-                              _controllers.putIfAbsent(group.id, () => ExpansionTileController());
+                            final updated = [...sortedGroups];
+                            final moved = updated.removeAt(oldIndex);
+                            updated.insert(newIndex, moved);
 
-                              return ExpansionTile(
-                                controller: _controllers[group.id]!,
+                            for (int i = 0; i < updated.length; i++) {
+                              updated[i].position = i;
+                            }
+
+                            setState(() {
+                              groups = List.from(updated);
+                            });
+
+                            Future.microtask(() async {
+                              for (final g in updated) {
+                                await _groupRepo.updateGroup(g);
+                              }
+                            });
+                          },
+                          children: [
+                            for (final group in sortedGroups)
+                              Theme(
                                 key: ValueKey(group.id),
-                                tilePadding: const EdgeInsets.symmetric(horizontal: 8),
-                                childrenPadding: EdgeInsets.zero,
-                                initiallyExpanded: expandedGroups.contains(group.id),
-                                onExpansionChanged: (expanded) {
-                                  setState(() {
-                                    if (expanded) {
-                                      expandedGroups.add(group.id);
-                                    } else {
-                                      expandedGroups.remove(group.id);
-                                    }
-                                  });
-                                },
-                                title: Row(
-                                  children: [
-                                    Container(
-                                      width: 50,
-                                      height: 50,
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context).primaryColorLight.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(10),
-                                      ),
-                                      child: Icon(
-                                        getGroupIconData(group.icon),
-                                        color: Theme.of(context).primaryColorLight,
-                                        size: 25,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                        child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Row(
-                                          children: [
-                                            Text(
-                                              group.name,
-                                              style: TextStyle(
-                                                fontSize: 16,
-                                                fontWeight: FontWeight.w600,
-                                                color: Colors.grey[600],
-                                              ),
+                                data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                                child: DragTarget<Device>(
+                                  onWillAccept: (data) => data != null && data.groupId != group.id,
+                                  onAccept: (device) async {
+                                    setState(() {
+                                      device.groupId = group.id;
+                                    });
+                                    _controllers[group.id]?.expand();
+                                    await _deviceRepo.updateDevice(device);
+                                  },
+                                  builder: (context, candidateItems, rejectedItems) {
+                                    final groupDevices = group.id == -999 ? _devices.where((d) => d.isShared).toList() : _devices.where((d) => d.groupId == group.id && !d.isShared).toList();
+
+                                    _controllers.putIfAbsent(group.id, () => ExpansionTileController());
+
+                                    return ExpansionTile(
+                                      controller: _controllers[group.id]!,
+                                      key: ValueKey(group.id),
+                                      tilePadding: const EdgeInsets.symmetric(horizontal: 8),
+                                      childrenPadding: EdgeInsets.zero,
+                                      initiallyExpanded: expandedGroups.contains(group.id),
+                                      onExpansionChanged: (expanded) {
+                                        setState(() {
+                                          if (expanded) {
+                                            expandedGroups.add(group.id);
+                                          } else {
+                                            expandedGroups.remove(group.id);
+                                          }
+                                        });
+                                      },
+                                      title: Row(
+                                        children: [
+                                          Container(
+                                            width: 50,
+                                            height: 50,
+                                            decoration: BoxDecoration(
+                                              color: Theme.of(context).primaryColorLight.withOpacity(0.1),
+                                              borderRadius: BorderRadius.circular(10),
                                             ),
-                                            const SizedBox(width: 6),
-                                            if (group.isDefault)
-                                              Badge(
-                                                label: const Text(
-                                                  'Padrão',
-                                                  style: TextStyle(fontSize: 10, color: Colors.white),
-                                                ),
-                                                backgroundColor: Theme.of(context).primaryColorLight,
-                                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                              )
-                                          ],
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          "${groupDevices.length} dispositivo${groupDevices.length == 1 ? '' : 's'}",
-                                          style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                                        ),
-                                      ],
-                                    )),
-                                    if (expandedGroups.contains(group.id)) ...[
-                                      _GroupIconButton(
-                                        icon: Icons.edit,
-                                        tooltip: "Editar grupo",
-                                        onTap: () {
-                                          setState(() => groupSelecionado = group);
-                                          _editGroup();
-                                        },
-                                      ),
-                                      const SizedBox(width: 8),
-                                      _GroupIconButton(
-                                        icon: Icons.ios_share_rounded,
-                                        tooltip: "Compartilhar grupo",
-                                        onTap: () {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text("Compartilhar grupo (em breve)")),
-                                          );
-                                        },
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                                children: [
-                                  ...(groupDevices.isNotEmpty
-                                      ? groupDevices.map((d) {
-                                          return LongPressDraggable<Device>(
-                                            data: d,
-                                            feedback: Material(
-                                              color: Colors.transparent,
-                                              child: Opacity(
-                                                opacity: 0.7,
-                                                child: SizedBox(
-                                                  width: screenWidth - 32,
-                                                  child: _DeviceCard(
-                                                    device: d,
-                                                    onFavorite: () {},
-                                                    onOpen: () {},
+                                            child: Icon(
+                                              getGroupIconData(group.icon),
+                                              color: Theme.of(context).primaryColorLight,
+                                              size: 25,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                              child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Row(
+                                                children: [
+                                                  Text(
+                                                    group.name,
+                                                    style: TextStyle(
+                                                      fontSize: 16,
+                                                      fontWeight: FontWeight.w600,
+                                                      color: Colors.grey[600],
+                                                    ),
                                                   ),
-                                                ),
+                                                  const SizedBox(width: 6),
+                                                  if (group.isDefault)
+                                                    Badge(
+                                                      label: const Text(
+                                                        'Padrão',
+                                                        style: TextStyle(fontSize: 10, color: Colors.white),
+                                                      ),
+                                                      backgroundColor: Theme.of(context).primaryColorLight,
+                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                    )
+                                                ],
                                               ),
-                                            ),
-                                            childWhenDragging: Opacity(
-                                              opacity: 0.4,
-                                              child: _DeviceCard(
-                                                device: d,
-                                                onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
-                                                onOpen: () {},
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                "${groupDevices.length} dispositivo${groupDevices.length == 1 ? '' : 's'}",
+                                                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
                                               ),
+                                            ],
+                                          )),
+                                          if (expandedGroups.contains(group.id) && group.icon != "share") ...[
+                                            _GroupIconButton(
+                                              icon: Icons.edit,
+                                              tooltip: "Editar grupo",
+                                              onTap: () {
+                                                setState(() => groupSelecionado = group);
+                                                _editGroup();
+                                              },
                                             ),
-                                            child: Padding(
-                                              padding: const EdgeInsets.symmetric(vertical: 4),
-                                              child: _DeviceCard(
-                                                device: d,
-                                                onFavorite: () {
-                                                  setState(() => d.isFavorite = !d.isFavorite);
-                                                  _deviceRepo.updateDevice(d);
-                                                },
-                                                onOpen: () async {
-                                                  final updated = await Navigator.push<Device>(
-                                                    context,
-                                                    MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
-                                                  );
-                                                  if (updated != null) {
-                                                    setState(() {
-                                                      final idx = _devices.indexWhere((e) => e.id == updated.id);
-                                                      if (idx >= 0) _devices[idx] = updated;
-                                                    });
-                                                  }
-                                                },
-                                              ),
+                                            const SizedBox(width: 8),
+                                            _GroupIconButton(
+                                              icon: Icons.ios_share_rounded,
+                                              tooltip: "Compartilhar grupo",
+                                              onTap: () {
+                                                _shareDevice();
+                                              },
                                             ),
-                                          );
-                                        }).toList()
-                                      : [
-                                          deviceWarning(
-                                            "Nenhum dispositivo neste grupo",
-                                            "Arraste dispositivos para cá ou altere ao editar um dispositivo.",
-                                            FontAwesomeIcons.boxOpen,
-                                          )
-                                        ])
-                                ],
-                              );
-                            },
-                          ),
-                        )
+                                          ],
+                                        ],
+                                      ),
+                                      children: [
+                                        ...(groupDevices.isNotEmpty
+                                            ? groupDevices.map((d) {
+                                                return LongPressDraggable<Device>(
+                                                  data: d,
+                                                  feedback: Material(
+                                                    color: Colors.transparent,
+                                                    child: Opacity(
+                                                      opacity: 0.7,
+                                                      child: SizedBox(
+                                                        width: screenWidth - 32,
+                                                        child: _DeviceCard(
+                                                          device: d,
+                                                          onFavorite: () {},
+                                                          onOpen: () {},
+                                                        ),
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  childWhenDragging: Opacity(
+                                                    opacity: 0.4,
+                                                    child: _DeviceCard(
+                                                      device: d,
+                                                      onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
+                                                      onOpen: () {},
+                                                    ),
+                                                  ),
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                                    child: _DeviceCard(
+                                                      device: d,
+                                                      onFavorite: () {
+                                                        setState(() => d.isFavorite = !d.isFavorite);
+                                                        _deviceRepo.updateDevice(d);
+                                                      },
+                                                      onOpen: () async {
+                                                        final updated = await Navigator.push<Device>(
+                                                          context,
+                                                          MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
+                                                        );
+                                                        if (updated != null) {
+                                                          setState(() {
+                                                            final idx = _devices.indexWhere((e) => e.id == updated.id);
+                                                            if (idx >= 0) _devices[idx] = updated;
+                                                          });
+                                                        }
+                                                      },
+                                                    ),
+                                                  ),
+                                                );
+                                              }).toList()
+                                            : [
+                                                deviceWarning(
+                                                  "Nenhum dispositivo neste grupo",
+                                                  "Arraste dispositivos para cá ou altere ao editar um dispositivo.",
+                                                  FontAwesomeIcons.boxOpen,
+                                                )
+                                              ])
+                                      ],
+                                    );
+                                  },
+                                ),
+                              )
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
               )
-            : Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: noDevice(),
-              ),
+            : Column(children: [
+                _pendingShares.isNotEmpty
+                    ? Padding(
+                        padding: const EdgeInsets.only(top: 16, bottom: 0, left: 16, right: 16),
+                        child: SharingNotificationWidget(
+                          pendingShares: _pendingShares,
+                          onAccept: _acceptShare,
+                          onReject: _rejectShare,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+                Padding(
+                  padding: EdgeInsets.only(top: _pendingShares.isEmpty ? 16 : 0, bottom: 16, left: 16, right: 16),
+                  child: noDevice(),
+                ),
+              ]),
       ),
     );
   }
@@ -395,42 +548,6 @@ class _DeviceCard extends StatelessWidget {
     required this.onFavorite,
     required this.onOpen,
   });
-
-  IconData _iconForType(String t) {
-    switch (t) {
-      case 'feeder':
-        return Icons.pets;
-      case 'rfControl':
-        return Icons.settings_remote;
-      case "lightbulb":
-      case "light":
-        return FontAwesomeIcons.lightbulb;
-      case "switch":
-        return FontAwesomeIcons.powerOff;
-      case "trigger":
-        return FontAwesomeIcons.bolt;
-      default:
-        return Icons.device_unknown;
-    }
-  }
-
-  String _typeLabel(String t) {
-    switch (t) {
-      case "feeder":
-        return 'Alimentador Automático';
-      case "rfControl":
-        return 'Controle RF Inteligente';
-      case "lightbulb":
-      case "light":
-        return 'Lâmpada Inteligente';
-      case "switch":
-        return 'Interruptor Inteligente';
-      case "trigger":
-        return 'Gatilho Inteligente';
-      default:
-        return 'Dispositivo Desconhecido';
-    }
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -464,7 +581,7 @@ class _DeviceCard extends StatelessWidget {
                     gradient: grad,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Icon(_iconForType(device.type), color: Colors.white),
+                  child: Icon(getDeviceIcon(device, returnData: true), color: Colors.white),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -476,7 +593,7 @@ class _DeviceCard extends StatelessWidget {
                       Row(
                         children: [
                           Text(
-                            _typeLabel(device.type),
+                            getDeviceSubtitle(device.type),
                             style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                           ),
                         ],
@@ -545,38 +662,12 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
   late TextEditingController _nameCtrl;
   late TextEditingController _ipControl;
   late String _type;
-  late IconData _selectedIcon;
+  late String _selectedIconKey;
+  late Map<String, List<dynamic>> _deviceTypeIcons;
   late DeviceRepository _deviceRepo;
   late GroupRepository _groupRepo;
   List<Group> _groups = [];
   int? _selectedGroupId;
-
-  final Map<String, List<IconData>> _iconOptions = {
-    "rfControl": [
-      Icons.settings_remote,
-      Icons.garage,
-      Icons.radio,
-      Icons.wifi,
-    ],
-    "feeder": [
-      Icons.pets,
-      Icons.restaurant,
-      Icons.rice_bowl,
-      Icons.local_dining,
-      Icons.fastfood,
-    ],
-    "lightbulb": [
-      Icons.lightbulb,
-      Icons.wb_incandescent,
-      Icons.wb_sunny,
-    ],
-    "switch": [FontAwesomeIcons.powerOff, FontAwesomeIcons.toggleOn, FontAwesomeIcons.plug, FontAwesomeIcons.lightbulb],
-    "trigger": [FontAwesomeIcons.bolt, FontAwesomeIcons.bell, FontAwesomeIcons.bullhorn, FontAwesomeIcons.triangleExclamation],
-    "unknown": [
-      Icons.device_unknown,
-      Icons.question_mark,
-    ],
-  };
 
   @override
   void initState() {
@@ -584,7 +675,8 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     _nameCtrl = TextEditingController(text: widget.device.name);
     _ipControl = TextEditingController(text: widget.device.ip);
     _type = widget.device.type;
-    _selectedIcon = _iconOptions[_type]!.first;
+    _deviceTypeIcons = getDeviceTypeIcons();
+    _selectedIconKey = widget.device.icon;
 
     _deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
     _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
@@ -696,10 +788,12 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                             scrollDirection: Axis.horizontal,
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.center,
-                              children: _iconOptions[_type]!.map((icon) {
-                                final isSelected = icon == _selectedIcon;
+                              children: _deviceTypeIcons[_type]!.map((icon) {
+                                final isSelected = icon['key'] == _selectedIconKey;
                                 return GestureDetector(
-                                  onTap: () => setState(() => _selectedIcon = icon),
+                                  onTap: () => setState(() {
+                                    _selectedIconKey = icon['key'];
+                                  }),
                                   child: AnimatedContainer(
                                     duration: const Duration(milliseconds: 200),
                                     margin: const EdgeInsets.symmetric(horizontal: 12),
@@ -719,7 +813,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                                         gradient: grad,
                                         borderRadius: BorderRadius.circular(12),
                                       ),
-                                      child: Icon(icon, color: Colors.white),
+                                      child: Icon(icon['icon'], color: Colors.white),
                                     ),
                                   ),
                                 );
@@ -790,12 +884,17 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                             Expanded(
                               child: GradientButton(
                                 onPressed: () {
+                                  //needs the selected icon key to array
                                   final updated = widget.device
                                     ..name = _nameCtrl.text.trim()
-                                    ..type = _type;
+                                    ..type = _type
+                                    ..icon = _selectedIconKey;
+
                                   if (_selectedGroupId != null) {
                                     updated.groupId = _selectedGroupId!;
                                   }
+
+                                  print(updated.toJsonWithId());
 
                                   _deviceRepo.updateDevice(updated);
                                   Navigator.pop(context, updated);
@@ -804,6 +903,61 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                               ),
                             ),
                           ],
+                        ),
+                        const SizedBox(height: 16),
+                        GradientButton(
+                          error: true,
+                          onPressed: () async {
+                            final confirmar = await showDialog<bool>(
+                              context: context,
+                              builder: (ctx) => AlertDialog(
+                                title: const Text('Confirmar remoção'),
+                                content: const Text(
+                                  'Tem certeza que deseja desconectar este dispositivo?\n'
+                                  'Essa ação apagará todas as configurações.',
+                                ),
+                                actions: [
+                                  TextButton(
+                                    onPressed: () => Navigator.pop(ctx, false),
+                                    child: const Text('Cancelar'),
+                                  ),
+                                  ElevatedButton(
+                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+                                    onPressed: () => Navigator.pop(ctx, true),
+                                    child: const Text('Desconectar'),
+                                  ),
+                                ],
+                              ),
+                            );
+
+                            if (confirmar == true) {
+                              bool ok = await resetDevice(widget.device, context, mounted);
+                              if (!ok) {
+                                if (!mounted) return;
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Não foi possível desconectar o dispositivo. Tente novamente."),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                return;
+                              }
+
+                              await _deviceRepo.removeDevice(widget.device.id);
+                              if (!mounted) return;
+                              Navigator.pop(context);
+
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text("Dispositivo desconectado e removido com sucesso."),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            }
+                          },
+                          child: const Text('Desconectar e remover'),
                         ),
                         const SizedBox(height: 8),
                         TextButton(

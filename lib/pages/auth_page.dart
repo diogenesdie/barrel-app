@@ -17,12 +17,15 @@ LinearGradient appGradient(BuildContext context) => LinearGradient(
     );
 
 /// Botão com gradiente reutilizável
+/// Botão com gradiente reutilizável (suporta estado de erro)
 class GradientButton extends StatelessWidget {
   final Widget child;
   final VoidCallback? onPressed;
   final EdgeInsetsGeometry padding;
   final double borderRadius;
   final double elevation;
+  final bool error;
+  final bool disabled;
 
   const GradientButton({
     super.key,
@@ -31,12 +34,42 @@ class GradientButton extends StatelessWidget {
     this.padding = const EdgeInsets.symmetric(horizontal: 20.0, vertical: 14.0),
     this.borderRadius = 12,
     this.elevation = 0,
+    this.error = false,
+    this.disabled = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final grad = appGradient(context);
-    final isDisabled = onPressed == null;
+    final grad = error
+        ? LinearGradient(
+            colors: [
+              Colors.red.shade400,
+              Colors.red.shade700,
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : appGradient(context);
+
+    final isDisabled = onPressed == null || disabled;
+
+    final gradDisabled = error
+        ? LinearGradient(
+            colors: [
+              Colors.red.shade200.withOpacity(0.5),
+              Colors.red.shade400.withOpacity(0.5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          )
+        : LinearGradient(
+            colors: [
+              Theme.of(context).primaryColorLight.withOpacity(0.5),
+              Theme.of(context).primaryColor.withOpacity(0.5),
+            ],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          );
 
     return Material(
       color: Colors.transparent,
@@ -45,10 +78,7 @@ class GradientButton extends StatelessWidget {
       child: Ink(
         decoration: BoxDecoration(
           gradient: isDisabled
-              ? LinearGradient(colors: [
-                  Theme.of(context).primaryColorLight.withOpacity(0.5),
-                  Theme.of(context).primaryColor.withOpacity(0.5),
-                ])
+              ? gradDisabled
               : grad,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
@@ -58,8 +88,8 @@ class GradientButton extends StatelessWidget {
           child: Padding(
             padding: padding,
             child: DefaultTextStyle(
-              style: const TextStyle(
-                color: Colors.white,
+              style: TextStyle(
+                color: error ? Colors.white : Colors.white,
                 fontWeight: FontWeight.w600,
               ),
               child: Center(child: child),

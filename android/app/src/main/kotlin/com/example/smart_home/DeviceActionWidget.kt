@@ -21,7 +21,7 @@ import org.eclipse.paho.client.mqttv3.MqttException
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-data class Device(val name: String, val route: String, val ip: String = "", val id: String = "")
+data class Device(val name: String, val route: String, val ip: String = "", val id: String = "", val icon: String = "ic_power")
 
 /**
  * Implementation of App Widget functionality.
@@ -50,14 +50,13 @@ class DeviceActionWidget : HomeWidgetProvider() {
             Log.d("DeviceActionWidget", "Route: $route")
 
             val token = "d4f8a7e2-9b3c-4f6a-b5d1-7c9e1a0f2e8c"
-            val url = "http://$ip$route" // Replace with your host IP
+            val url = "http://$ip:8080$route"
 
             makeHttpGetRequest(url, token)
 
-                // MQTT (novo)
             val broker = "tcp://barrel.app.br:1883"
             val topic = "users/sprandel/${deviceId}/command"
-            val payload = "trigger"
+            val payload = "toggle"
             publishMqttMessage(broker, topic, payload)
         }
     }
@@ -130,9 +129,11 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
             val name = deviceObject.getString("name")
             val ip = deviceObject.getString("ip")
             val id = deviceObject.getString("device_id")
+            val icon = deviceObject.optString("icon", "ic_power")
+
 
             Log.d("DeviceActionWidget", "Device: $name")
-            deviceList.add(Device(name, "/command", ip, id))
+            deviceList.add(Device(name, "/command", ip, id, icon))
         }
     } catch (e: Exception) {
         e.printStackTrace()
@@ -150,7 +151,16 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
 
         val buttonView = RemoteViews(context.packageName, R.layout.widget_button_item)
         buttonView.setTextViewText(R.id.device_name, device.name)
-        buttonView.setImageViewResource(R.id.device_icon, R.drawable.ic_power)
+
+        val iconNameFormatted = device.icon
+            .replace(Regex("([a-z])([A-Z]+)"), "$1_$2")
+            .lowercase()
+            
+        val iconResId = context.resources.getIdentifier(
+            iconNameFormatted, "drawable", context.packageName
+        )
+        val finalIcon = if (iconResId != 0) iconResId else R.drawable.ic_power
+        buttonView.setImageViewResource(R.id.device_icon, finalIcon)
 
         val intent = Intent(context, DeviceActionWidget::class.java).apply {
             action = "TRIGGER_DEVICE_ACTION"

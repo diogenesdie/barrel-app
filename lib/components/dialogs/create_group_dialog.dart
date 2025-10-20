@@ -101,15 +101,12 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   ),
                 ),
               ),
-
               const SizedBox(height: 24),
-
               TextField(
                 controller: nameCtrl,
                 decoration: _dec('Nome do grupo'),
               ),
               const SizedBox(height: 16),
-
               Row(
                 children: [
                   const Text('Grupo padrão', style: TextStyle(fontSize: 14)),
@@ -120,9 +117,7 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   ),
                 ],
               ),
-
               const SizedBox(height: 24),
-
               Row(
                 children: [
                   Expanded(
@@ -148,6 +143,38 @@ class _CreateGroupDialogState extends State<CreateGroupDialog> {
                   ),
                 ],
               ),
+              isEditing ? const SizedBox(height: 12) : Container(),
+              isEditing
+                  ? Row(
+                      children: [
+                        Expanded(
+                          child: GradientButton(
+                            error: true,
+                            disabled: widget.initialGroup!.isDefault,
+                            onPressed: () {
+                              final group = widget.initialGroup!;
+                              if (group.isDefault) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text("Não é possível excluir o grupo padrão."),
+                                    backgroundColor: Colors.red,
+                                    behavior: SnackBarBehavior.floating,
+                                  ),
+                                );
+                                return;
+                              }
+                              group.position = -1;
+                              Navigator.pop(context, group);
+                            },
+                            child: Text(
+                              'Excluir grupo',
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  : Container(),
               SizedBox(
                 width: double.infinity,
                 child: TextButton(

@@ -107,6 +107,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    _requestBluetoothPermissions();
+
     _loadWeather();
     ssidController = TextEditingController();
     passwordController = TextEditingController();
@@ -130,6 +133,22 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       _getWifiSSID();
       _loadDevices();
       _updateBluetoothStatus();
+    }
+  }
+
+  Future<void> _requestBluetoothPermissions() async {
+    final scanStatus = await Permission.bluetoothScan.request();
+    final connectStatus = await Permission.bluetoothConnect.request();
+    final locStatus = await Permission.locationWhenInUse.request();
+
+    if (scanStatus.isDenied || connectStatus.isDenied || locStatus.isDenied) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Permissões de Bluetooth/Wi-Fi são necessárias para adicionar dispositivos"),
+          ),
+        );
+      }
     }
   }
 
@@ -322,10 +341,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
           final newState = parts[0];
           final newIp = parts[1];
           final deviceId = topic.split('/').elementAt(2);
-
           setState(() {
             devices = devices.map((dev) {
-              if (dev.id == deviceId) {
+              if (dev.deviceId == deviceId) {
                 return dev.copyWith(
                   state: newState,
                   ip: newIp,
@@ -335,8 +353,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
             }).toList();
           });
 
-          final updatedDevice = devices.firstWhere((d) => d.id == deviceId);
-          await _deviceRepo.updateDevice(updatedDevice);
+          final updatedDevice = devices.firstWhere((d) => d.deviceId == deviceId);
+          await _deviceRepo.updateDevice(updatedDevice, sync: false);
         }
       });
     } catch (e) {
@@ -356,9 +374,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
   Widget _statusDevice(Device device) {
     if (device.type == "trigger") {
-      return SequentialTextSwitcher(
-        text: device.state.toUpperCase() == "ON" ? "Disparado" : "Clique para disparar"
-      );
+      return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Disparado" : "Clique para disparar");
+    } else if (device.type == "rf") {
+      return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Enviando Sinal" : "Clique para enviar sinal");
     } else {
       return SequentialTextSwitcher(
         text: device.state.toUpperCase() == "ON" ? "Ligado" : "Desligado",
@@ -369,7 +387,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
     bool ok = false;
     try {
-      final uri = Uri.parse('http://${device.ip}/command');
+      final uri = Uri.parse('http://${device.ip}:8080/command');
       final response = await http.post(
         uri,
         body: {'state': newState},
@@ -402,6 +420,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       } else {
         return;
       }
+    } else if (device.type == "rf") {
+      newState = "pulse";
     }
 
     bool ok = false;
@@ -535,7 +555,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               // só pega a chave iv se for diferente de trigger
               if (!deviceId.toLowerCase().contains("trigger")) {
                 // faz chamada para ip dispositivo para registrar /get_key_iv
-                final url = 'http://$ip/get_key_iv';
+                final url = 'http://$ip:8080/get_key_iv';
                 final response = await http.get(Uri.parse(url));
                 if (response.statusCode != 200) {
                   throw "Falha ao registrar o dispositivo: ${response.statusCode}";
@@ -1039,7 +1059,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                         borderRadius: BorderRadius.circular(10),
                         child: AnimatedGradientButton(
                           stateOn: device.state == 'on',
-                          icon: getDeviceIcon(device.type, returnData: true),
+                          icon: getDeviceIcon(device, returnData: true),
                         )),
                   ),
                 ),
@@ -1204,7 +1224,18 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                         }
                         final grouped = <Group, List<Device>>{};
                         for (final g in groups) {
-                          grouped[g] = devices.where((d) => d.groupId == g.id).toList();
+                          grouped[g] = devices.where((d) => d.groupId == g.id && !d.isShared).toList();
+                        }
+
+                        final sharedDevices = devices.where((d) => d.isShared).toList();
+                        if (sharedDevices.isNotEmpty) {
+                          grouped[Group(
+                            id: -999,
+                            name: "Compartilhados comigo",
+                            icon: "share",
+                            position: -1,
+                            isDefault: false,
+                          )] = sharedDevices;
                         }
 
                         return Column(

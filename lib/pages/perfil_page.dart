@@ -16,11 +16,6 @@ class _PerfilPageState extends State<PerfilPage> {
   final _emailCtrl = TextEditingController();
   final _telefoneCtrl = TextEditingController();
 
-  final _enderecoCtrl = TextEditingController();
-  final _cidadeCtrl = TextEditingController();
-  final _estadoCtrl = TextEditingController();
-  final _cepCtrl = TextEditingController();
-
   final _senhaAtualCtrl = TextEditingController();
   final _senhaNovaCtrl = TextEditingController();
   final _senhaConfirmaCtrl = TextEditingController();
@@ -37,21 +32,6 @@ class _PerfilPageState extends State<PerfilPage> {
     _loadUserInfo();
   }
 
-  @override
-  void dispose() {
-    _nomeCtrl.dispose();
-    _emailCtrl.dispose();
-    _telefoneCtrl.dispose();
-    _enderecoCtrl.dispose();
-    _cidadeCtrl.dispose();
-    _estadoCtrl.dispose();
-    _cepCtrl.dispose();
-    _senhaAtualCtrl.dispose();
-    _senhaNovaCtrl.dispose();
-    _senhaConfirmaCtrl.dispose();
-    super.dispose();
-  }
-
   void _loadUserInfo() async {
     final user = await SessionUtils.getUser();
     final nome = user?['name'] as String?;
@@ -65,48 +45,35 @@ class _PerfilPageState extends State<PerfilPage> {
     });
   }
 
-  InputDecoration _dec(String label, {Widget? suffix}) {
+  InputDecoration _dec(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      prefixIcon: Icon(icon, color: Colors.grey[600]),
+      filled: true,
+      fillColor: Colors.grey[100],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      labelStyle: TextStyle(color: Colors.grey[700]),
       suffixIcon: suffix,
     );
   }
 
-  String? _validaEmail(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Informe seu e-mail';
-    final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim());
-    if (!ok) return 'E-mail inválido';
-    return null;
-  }
-
-  String? _validaObrigatorio(String? v) {
-    if (v == null || v.trim().isEmpty) return 'Campo obrigatório';
-    return null;
-  }
-
-  String? _validaSenha(String? v) {
-    if (v == null || v.length < 6) return 'Mínimo 6 caracteres';
-    return null;
-  }
-
   Future<void> _salvarPerfil() async {
     if (!_formKey.currentState!.validate()) return;
-
-    // TODO: salvar no backend
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Perfil atualizado!')),
     );
   }
 
   Future<void> _alterarSenha() async {
-    if (_senhaAtualCtrl.text.isEmpty || _validaSenha(_senhaNovaCtrl.text) != null || _senhaNovaCtrl.text != _senhaConfirmaCtrl.text) {
+    if (_senhaAtualCtrl.text.isEmpty || _senhaNovaCtrl.text.isEmpty || _senhaNovaCtrl.text != _senhaConfirmaCtrl.text) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Verifique os campos de senha.')),
       );
       return;
     }
-    // TODO: chamar endpoint de alteração de senha
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(content: Text('Senha alterada com sucesso.')),
     );
@@ -115,220 +82,199 @@ class _PerfilPageState extends State<PerfilPage> {
     _senhaConfirmaCtrl.clear();
   }
 
-  Widget _buildPerfil(BuildContext context) {
-    return LayoutBuilder(
-      builder: (_, constraints) {
-        final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-        final maxCardWidth = isLandscape ? 720.0 : 520.0;
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: SessionUtils.getUser(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        final user = snapshot.data;
+        if (user == null) {
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: SafeArea(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.person_outline, color: Colors.grey, size: 80),
+                    const SizedBox(height: 16),
+                    const Text(
+                      "Você não está logado",
+                      style: TextStyle(color: Colors.black87, fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      "Entre na sua conta para acessar o perfil.",
+                      style: TextStyle(color: Colors.black54),
+                    ),
+                    const SizedBox(height: 24),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(builder: (_) => const AuthPage()),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.blueAccent,
+                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                      child: const Text("Fazer login", style: TextStyle(fontSize: 16)),
+                    )
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
 
         return Scaffold(
+          backgroundColor: Colors.white,
           body: SafeArea(
-            child: Center(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                child: ConstrainedBox(
-                  constraints: BoxConstraints(maxWidth: maxCardWidth),
-                  child: Column(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+              child: Column(
+                children: [
+                  // Avatar + header
+                  Column(
                     children: [
-                      Card(
-                        elevation: 6,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Form(
-                            key: _formKey,
-                            child: Column(
-                              children: [
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Dados pessoais',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.grey[800],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _nomeCtrl,
-                                  decoration: _dec('Nome completo'),
-                                  validator: _validaObrigatorio,
-                                  textCapitalization: TextCapitalization.words,
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _emailCtrl,
-                                  decoration: _dec('Email'),
-                                  keyboardType: TextInputType.emailAddress,
-                                  validator: _validaEmail,
-                                ),
-                                const SizedBox(height: 12),
-                                TextFormField(
-                                  controller: _telefoneCtrl,
-                                  decoration: _dec('Telefone'),
-                                  keyboardType: TextInputType.phone,
-                                ),
-                                const SizedBox(height: 20),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: Text(
-                                    'Preferências',
-                                    style: TextStyle(
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                      color: Colors.grey[800],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.brown[50],
-                                    border: Border.all(
-                                      color: Colors.brown[50]!,
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text('Notificações por push'),
-                                    value: _notifPush,
-                                    onChanged: (v) => setState(() => _notifPush = v),
-                                  ),
-                                ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.brown[50],
-                                    border: Border.all(
-                                      color: Colors.brown[50]!,
-                                      width: 1,
-                                    ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: SwitchListTile(
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text('Notificações por e-mail'),
-                                    value: _notifEmail,
-                                    onChanged: (v) => setState(() => _notifEmail = v),
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    color: Colors.brown[50],
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: ExpansionTile(
-                                    tilePadding: EdgeInsets.zero,
-                                    title: Text(
-                                      'Alterar senha',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.bold,
-                                        color: Colors.grey[800],
-                                      ),
-                                    ),
-                                    children: [
-                                      const SizedBox(height: 8),
-                                      TextFormField(
-                                        controller: _senhaAtualCtrl,
-                                        obscureText: _obscureAtual,
-                                        decoration: _dec(
-                                          'Senha atual',
-                                          suffix: IconButton(
-                                            onPressed: () => setState(() => _obscureAtual = !_obscureAtual),
-                                            icon: Icon(_obscureAtual ? Icons.visibility : Icons.visibility_off),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextFormField(
-                                        controller: _senhaNovaCtrl,
-                                        obscureText: _obscureNova,
-                                        decoration: _dec(
-                                          'Nova senha',
-                                          suffix: IconButton(
-                                            onPressed: () => setState(() => _obscureNova = !_obscureNova),
-                                            icon: Icon(_obscureNova ? Icons.visibility : Icons.visibility_off),
-                                          ),
-                                        ),
-                                        validator: _validaSenha,
-                                      ),
-                                      const SizedBox(height: 12),
-                                      TextFormField(
-                                        controller: _senhaConfirmaCtrl,
-                                        obscureText: _obscureConfirma,
-                                        decoration: _dec(
-                                          'Confirmar nova senha',
-                                          suffix: IconButton(
-                                            onPressed: () => setState(() => _obscureConfirma = !_obscureConfirma),
-                                            icon: Icon(_obscureConfirma ? Icons.visibility : Icons.visibility_off),
-                                          ),
-                                        ),
-                                        validator: (v) {
-                                          final base = _validaSenha(v);
-                                          if (base != null) return base;
-                                          if (v != _senhaNovaCtrl.text) return 'As senhas não coincidem';
-                                          return null;
-                                        },
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Align(
-                                        alignment: Alignment.centerRight,
-                                        child: SizedBox(
-                                          child: GradientButton(
-                                            onPressed: _alterarSenha,
-                                            child: const Text('Atualizar senha'),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(height: 20),
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: GradientButton(
-                                        onPressed: _salvarPerfil,
-                                        child: const Text('Salvar alterações'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 12),
-                                SizedBox(
-                                  width: double.infinity,
-                                  child: OutlinedButton(
-                                    onPressed: () async {
-                                      await SessionUtils.clearSession();
-                                      Navigator.of(context).pushNamedAndRemoveUntil('/auth', (r) => false);
-                                    },
-                                    style: OutlinedButton.styleFrom(
-                                      side: BorderSide(color: Theme.of(context).primaryColor),
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                                      padding: const EdgeInsets.symmetric(vertical: 14),
-                                    ),
-                                    child: ShaderMask(
-                                      shaderCallback: (rect) => appGradient(context).createShader(rect),
-                                      child: const Text(
-                                        'Sair da conta',
-                                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                      CircleAvatar(
+                        radius: 48,
+                        backgroundColor: Colors.grey[200],
+                        child: const Icon(Icons.person, color: Colors.grey, size: 48),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        _nomeCtrl.text.isEmpty ? "Usuário Smart" : _nomeCtrl.text,
+                        style: const TextStyle(color: Colors.black87, fontSize: 20, fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        _emailCtrl.text,
+                        style: const TextStyle(color: Colors.black54, fontSize: 14),
                       ),
                     ],
                   ),
-                ),
+
+                  const SizedBox(height: 30),
+
+                  // Form card
+                  Container(
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(20),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 8,
+                          offset: const Offset(0, 3),
+                        ),
+                      ],
+                    ),
+                    padding: const EdgeInsets.all(20),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        children: [
+                          const Text(
+                            "Informações pessoais",
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _nomeCtrl,
+                            decoration: _dec('Nome completo', Icons.person_outline),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _emailCtrl,
+                            decoration: _dec('E-mail', Icons.email_outlined),
+                          ),
+                          const SizedBox(height: 12),
+                          TextFormField(
+                            controller: _telefoneCtrl,
+                            decoration: _dec('Telefone', Icons.phone_outlined),
+                          ),
+                          const SizedBox(height: 20),
+                          ExpansionTile(
+                            collapsedIconColor: Colors.grey,
+                            iconColor: Colors.grey[700],
+                            title: const Text(
+                              'Alterar senha',
+                              style: TextStyle(color: Colors.black87, fontWeight: FontWeight.bold),
+                            ),
+                            children: [
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _senhaAtualCtrl,
+                                obscureText: _obscureAtual,
+                                decoration: _dec(
+                                  'Senha atual',
+                                  Icons.lock_outline,
+                                  suffix: IconButton(
+                                    onPressed: () => setState(() => _obscureAtual = !_obscureAtual),
+                                    icon: Icon(_obscureAtual ? Icons.visibility : Icons.visibility_off, color: Colors.grey[600]),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _senhaNovaCtrl,
+                                obscureText: _obscureNova,
+                                decoration: _dec(
+                                  'Nova senha',
+                                  Icons.key_outlined,
+                                  suffix: IconButton(
+                                    onPressed: () => setState(() => _obscureNova = !_obscureNova),
+                                    icon: Icon(_obscureNova ? Icons.visibility : Icons.visibility_off, color: Colors.grey[600]),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              TextFormField(
+                                controller: _senhaConfirmaCtrl,
+                                obscureText: _obscureConfirma,
+                                decoration: _dec(
+                                  'Confirmar nova senha',
+                                  Icons.lock_reset_outlined,
+                                  suffix: IconButton(
+                                    onPressed: () => setState(() => _obscureConfirma = !_obscureConfirma),
+                                    icon: Icon(_obscureConfirma ? Icons.visibility : Icons.visibility_off, color: Colors.grey[600]),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              GradientButton(onPressed: _alterarSenha, child: const Text("Atualizar senha")),
+                              const SizedBox(height: 10),
+                            ],
+                          ),
+                          const SizedBox(height: 20),
+                          GradientButton(onPressed: _salvarPerfil, child: const Text("Salvar alterações")),
+                          const SizedBox(height: 12),
+                          TextButton(
+                            onPressed: () async {
+                              await SessionUtils.clearSession();
+                              Navigator.of(context).pushNamedAndRemoveUntil('/auth', (r) => false);
+                            },
+                            child: const Text(
+                              "Sair da conta",
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -336,80 +282,4 @@ class _PerfilPageState extends State<PerfilPage> {
       },
     );
   }
-
-  @override
-Widget build(BuildContext context) {
-  return FutureBuilder<Map<String, dynamic>?>(
-    future: SessionUtils.getUser(),
-    builder: (context, snapshot) {
-      if (snapshot.connectionState == ConnectionState.waiting) {
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
-      }
-
-      final user = snapshot.data;
-      if (user == null) {
-        return Scaffold(
-          body: SafeArea(
-            child: Center(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Card(
-                  elevation: 6,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Padding(
-                    padding: const EdgeInsets.all(28),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Icon(Icons.person_outline,
-                            size: 80, color: Colors.grey),
-                        const SizedBox(height: 20),
-                        Text(
-                          "Você ainda não está logado",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.grey[800],
-                          ),
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          "Entre na sua conta para gerenciar perfil, dispositivos e preferências.",
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 15,
-                            color: Colors.grey[600],
-                          ),
-                        ),
-                        const SizedBox(height: 24),
-                        GradientButton(
-                          onPressed: () {
-                            Navigator.pushReplacement(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => const AuthPage(),
-                              ),
-                            );
-                          },
-                          child: const Text("Fazer login"),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      }
-
-      return _buildPerfil(context);
-    },
-  );
-}
 }

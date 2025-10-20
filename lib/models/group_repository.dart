@@ -34,12 +34,12 @@ class GroupRepository {
   }
 
   List<Group> getGroups() {
-    return _box.values.toList();
+    return _box.values.toList()
+      ..sort((a, b) => a.position.compareTo(b.position));
   }
 
   Future<void> removeGroup(int id) async {
     await _box.delete(id);
-    await synGroupDelete(id);
   }
 
   Future<void> clearGroups() async {
@@ -51,11 +51,14 @@ class GroupRepository {
     syncGroupPostPut(group, false);
   }
 
-  Future<void> synGroupDelete(int id) async {
+  Future<void> syncGroupDelete(int id) async {
     try {
       final token = await SessionUtils.getToken();
 
-      if (token == null || token.isEmpty) return;
+      if (token == null || token.isEmpty) {
+        await removeGroup(id);
+        return;
+      }
 
       final response = await http.delete(
         Uri.parse("$apiBaseUrl/groups/$id"),
@@ -84,9 +87,6 @@ class GroupRepository {
       final url = newGroup ? "$apiBaseUrl/groups" : "$apiBaseUrl/groups/${group.id}";
       final method = newGroup ? 'POST' : 'PUT';
 
-      group.toJson();
-      print("Enviando grupo: ${group.toJson()}");
-
       final response = await (method == 'POST'
           ? http.post(
               Uri.parse(url),
@@ -108,6 +108,9 @@ class GroupRepository {
       if (response.statusCode == 200 || response.statusCode == 201) {
         final decoded = jsonDecode(response.body);
         final updatedGroup = Group.fromJson(decoded['data']);
+        if (updatedGroup.id != group.id) {
+          await _box.delete(group.id);
+        }
         await addGroup(updatedGroup, false);
       } else {
         throw Exception("Erro ao sincronizar grupo: ${response.statusCode}");
