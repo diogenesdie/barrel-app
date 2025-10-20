@@ -57,7 +57,7 @@ class DeviceActionWidget : HomeWidgetProvider() {
             val broker = "tcp://barrel.app.br:1883"
             val topic = "users/sprandel/${deviceId}/command"
             val payload = "toggle"
-            publishMqttMessage(broker, topic, payload)
+            publishMqttMessage(context, broker, topic, payload)
         }
     }
 
@@ -84,16 +84,23 @@ class DeviceActionWidget : HomeWidgetProvider() {
         }
     }
 
-    private fun publishMqttMessage(broker: String, topic: String, payload: String) {
+    private fun publishMqttMessage(context: Context, broker: String, topic: String, payload: String) {
         thread {
             try {
+                val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
+                val user = sharedPreferences.getString("flutter.auth_username", null)
+                val passwd = sharedPreferences.getString("flutter.auth_password", null)
+
                 val clientId = "AndroidWidget-" + System.currentTimeMillis()
                 val client = MqttClient(broker, clientId, MemoryPersistence())
 
+                Log.d("SessionUtils", "Login MQTT with username: $user")
+                Log.d("SessionUtils", "Login MQTT with password: $passwd")
+
                 val options = MqttConnectOptions().apply {
                     isCleanSession = true
-                    userName = "sprandel"      // se necessário
-                    password = "1234".toCharArray() // se necessário
+                    userName = user
+                    password = passwd?.toCharArray()
                 }
 
                 client.connect(options)

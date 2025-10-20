@@ -20,6 +20,20 @@ class SessionUtils {
     if (apiResponse['expires_at'] != null) {
       await _storage.write(key: _kExpiresAt, value: apiResponse['expires_at'] as String);
     }
+
+    await syncCredentialsToPrefs();
+    updateWidget();
+  }
+
+  static Future<void> syncCredentialsToPrefs() async {
+    final username = await _storage.read(key: _kUsername);
+    final password = await _storage.read(key: _kPassword);
+
+    if (username != null && password != null) {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_username', username);
+      await prefs.setString('auth_password', password);
+    }
   }
 
   static Future<String?> getToken() async {

@@ -393,38 +393,43 @@ class _DevicesPageState extends State<DevicesPage> {
                                           ),
                                           const SizedBox(width: 10),
                                           Expanded(
-                                              child: Column(
-                                            crossAxisAlignment: CrossAxisAlignment.start,
-                                            children: [
-                                              Row(
-                                                children: [
-                                                  Text(
-                                                    group.name,
-                                                    style: TextStyle(
-                                                      fontSize: 16,
-                                                      fontWeight: FontWeight.w600,
-                                                      color: Colors.grey[600],
-                                                    ),
-                                                  ),
-                                                  const SizedBox(width: 6),
-                                                  if (group.isDefault)
-                                                    Badge(
-                                                      label: const Text(
-                                                        'Padrão',
-                                                        style: TextStyle(fontSize: 10, color: Colors.white),
+                                            child: Column(
+                                              crossAxisAlignment: CrossAxisAlignment.start,
+                                              children: [
+                                                Row(
+                                                  children: [
+                                                    Flexible(
+                                                      child: Text(
+                                                        group.name,
+                                                        style: TextStyle(
+                                                          fontSize: 16,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.grey[600],
+                                                        ),
+                                                        overflow: TextOverflow.ellipsis,
+                                                        maxLines: 1,
                                                       ),
-                                                      backgroundColor: Theme.of(context).primaryColorLight,
-                                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                    )
-                                                ],
-                                              ),
-                                              const SizedBox(height: 2),
-                                              Text(
-                                                "${groupDevices.length} dispositivo${groupDevices.length == 1 ? '' : 's'}",
-                                                style: TextStyle(fontSize: 13, color: Colors.grey[500]),
-                                              ),
-                                            ],
-                                          )),
+                                                    ),
+                                                    const SizedBox(width: 6),
+                                                    if (group.isDefault)
+                                                      Badge(
+                                                        label: const Text(
+                                                          'Padrão',
+                                                          style: TextStyle(fontSize: 10, color: Colors.white),
+                                                        ),
+                                                        backgroundColor: Theme.of(context).primaryColorLight,
+                                                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                                      )
+                                                  ],
+                                                ),
+                                                const SizedBox(height: 2),
+                                                Text(
+                                                  "${groupDevices.length} dispositivo${groupDevices.length == 1 ? '' : 's'}",
+                                                  style: TextStyle(fontSize: 13, color: Colors.grey[500]),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
                                           if (expandedGroups.contains(group.id) && group.icon != "share") ...[
                                             _GroupIconButton(
                                               icon: Icons.edit,
