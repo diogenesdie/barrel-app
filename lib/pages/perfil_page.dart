@@ -20,8 +20,6 @@ class _PerfilPageState extends State<PerfilPage> {
   final _senhaNovaCtrl = TextEditingController();
   final _senhaConfirmaCtrl = TextEditingController();
 
-  bool _notifPush = true;
-  bool _notifEmail = true;
   bool _obscureAtual = true;
   bool _obscureNova = true;
   bool _obscureConfirma = true;

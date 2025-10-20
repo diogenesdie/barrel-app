@@ -5,7 +5,6 @@ import 'package:multicast_dns/multicast_dns.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
-import 'package:smart_home/utils/devices_utils.dart';
 
 class SearchDevicesPage extends StatefulWidget {
   const SearchDevicesPage({super.key});
