@@ -8,29 +8,18 @@ class CheckingSessionPage extends StatefulWidget {
   State<CheckingSessionPage> createState() => _CheckingSessionPageState();
 }
 
-class _CheckingSessionPageState extends State<CheckingSessionPage>
-    with TickerProviderStateMixin {
-  late AnimationController _colorController;
-
+class _CheckingSessionPageState extends State<CheckingSessionPage> {
   @override
   void initState() {
     super.initState();
-
-    // Controla a troca suave de cores do fundo
-    _colorController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..repeat(reverse: true);
-
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkSession();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _checkSession());
   }
 
   Future<void> _checkSession() async {
     final token = await SessionUtils.getToken();
     final expiresAt = await SessionUtils.getExpiresAt();
 
+    // Simula pequeno loading enquanto valida sessão
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
@@ -45,76 +34,97 @@ class _CheckingSessionPageState extends State<CheckingSessionPage>
     }
   }
 
-  @override
-  void dispose() {
-    _colorController.dispose();
-    super.dispose();
-  }
+  /// Mesmo gradiente usado no App/Login (primaryColorLight -> primaryColor)
+  LinearGradient appGradient(BuildContext context) => LinearGradient(
+        colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      );
 
   @override
   Widget build(BuildContext context) {
-    final color1 = Theme.of(context).primaryColor;
-    final color2 = Theme.of(context).colorScheme.secondary;
-    final color3 = Theme.of(context).primaryColorLight;
+    return Scaffold(
+      backgroundColor: Colors.white, // FUNDO BRANCO
+      body: SafeArea(
+        child: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Logo
+              Image.asset(
+                'assets/logo.png',
+                width: 120,
+                height: 120,
+                fit: BoxFit.contain,
+              ),
+              const SizedBox(height: 16),
 
-    return AnimatedBuilder(
-      animation: _colorController,
-      builder: (context, child) {
-        final t = _colorController.value;
+              // BARREL com gradient igual ao login
+              ShaderMask(
+                shaderCallback: (bounds) => appGradient(context).createShader(bounds),
+                child: const Text(
+                  'BARREL',
+                  style: TextStyle(
+                    fontSize: 36,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 10,
+                    color: Colors.white, // fica mascarado pelo ShaderMask
+                  ),
+                ),
+              ),
 
-        final animatedGradient = LinearGradient(
-          colors: [
-            Color.lerp(color1, color2, t)!,
-            Color.lerp(color2, color3, t)!,
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        );
-
-        return Scaffold(
-          body: Container(
-            width: double.infinity,
-            decoration: BoxDecoration(gradient: animatedGradient),
-            child: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
+              // SMART • HOME em cinza, com ponto usando o mesmo gradient
+              const SizedBox(height: 4),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset(
-                    'assets/logo.png',
-                    width: 120,
-                    height: 120,
-                    fit: BoxFit.contain,
-                  ),
-                  const SizedBox(height: 20),
                   const Text(
-                    "BARREL",
+                    'SMART',
                     style: TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      letterSpacing: 6,
-                      color: Colors.white,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 1.2,
+                      color: Colors.grey,
                     ),
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    "Smart Home",
-                    style: TextStyle(
-                      color: Colors.white70,
-                      fontSize: 14,
-                      letterSpacing: 1.5,
+                  Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 6),
+                    width: 4,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: appGradient(context),
                     ),
                   ),
-                  const SizedBox(height: 30),
-                  const CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: Colors.white70,
+                  const Text(
+                    'HOME',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w400,
+                      letterSpacing: 1.2,
+                      color: Colors.grey,
+                    ),
                   ),
                 ],
               ),
-            ),
+
+              const SizedBox(height: 28),
+
+              // Loader na cor primária (sem gradient), limpo sobre fundo branco
+              SizedBox(
+                width: 22,
+                height: 22,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  valueColor: AlwaysStoppedAnimation(
+                    Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
           ),
-        );
-      },
+        ),
+      ),
     );
   }
 }

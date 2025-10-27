@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
@@ -24,6 +25,8 @@ class _PerfilPageState extends State<PerfilPage> {
   bool _obscureNova = true;
   bool _obscureConfirma = true;
 
+  String? _shareCode; // << código de compartilhamento
+
   @override
   void initState() {
     super.initState();
@@ -36,10 +39,15 @@ class _PerfilPageState extends State<PerfilPage> {
     final email = user?['email'] as String?;
     final telefone = user?['telefone'] as String?;
 
+    // tenta pegar do backend; se não vier, gera um placeholder estável
+    final backendCode = (user?['shareCode'] ?? user?['share_code'])?.toString();
+    final derived = "NÃO DISPONÍVEL"; // Exemplo simples; pode ser algo como um hash do user ID
+
     setState(() {
       _nomeCtrl.text = nome ?? '';
       _emailCtrl.text = email ?? '';
       _telefoneCtrl.text = telefone ?? '';
+      _shareCode = (backendCode?.isNotEmpty == true ? backendCode : derived)?.toUpperCase();
     });
   }
 
@@ -78,6 +86,30 @@ class _PerfilPageState extends State<PerfilPage> {
     _senhaAtualCtrl.clear();
     _senhaNovaCtrl.clear();
     _senhaConfirmaCtrl.clear();
+  }
+
+  Future<void> _copyShareCode() async {
+    if (_shareCode == null || _shareCode!.isEmpty) return;
+    await Clipboard.setData(ClipboardData(text: _shareCode!));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Código copiado!'),
+        behavior: SnackBarBehavior.floating,
+        duration: Duration(seconds: 2),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _nomeCtrl.dispose();
+    _emailCtrl.dispose();
+    _telefoneCtrl.dispose();
+    _senhaAtualCtrl.dispose();
+    _senhaNovaCtrl.dispose();
+    _senhaConfirmaCtrl.dispose();
+    super.dispose();
   }
 
   @override
@@ -155,6 +187,56 @@ class _PerfilPageState extends State<PerfilPage> {
                       Text(
                         _emailCtrl.text,
                         style: const TextStyle(color: Colors.black54, fontSize: 14),
+                      ),
+
+                      const SizedBox(height: 10),
+                      GestureDetector(
+                        onTap: _copyShareCode,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey[300]!),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.qr_code_2, color: Colors.grey[700]),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Text(
+                                      'Código de compartilhamento',
+                                      style: TextStyle(
+                                        color: Colors.black54,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      _shareCode ?? '------',
+                                      style: const TextStyle(
+                                        color: Colors.black87,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: 2,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              IconButton(
+                                tooltip: 'Copiar',
+                                onPressed: _copyShareCode,
+                                icon: const Icon(Icons.copy_rounded),
+                                color: Colors.grey[700],
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ],
                   ),

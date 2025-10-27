@@ -237,7 +237,7 @@ class _DevicesPageState extends State<DevicesPage> {
   Future<void> _shareDevice() async {
     final result = await showDialog(
       context: context,
-      builder: (_) => ShareDeviceDialog(),
+      builder: (_) => ShareDeviceDialog(deviceId: 1),
     );
 
     if (result == true) {
