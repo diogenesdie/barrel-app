@@ -130,6 +130,11 @@ class DeviceRepository {
 
       print("Enviando dispositivo: ${device.toJson()}");
 
+      final deviceJson = device.toJson();
+      if (method == 'PUT') {
+        deviceJson.remove('device_id');
+      }
+
       final response = await (method == 'POST'
           ? http.post(
               Uri.parse(url),
@@ -137,7 +142,7 @@ class DeviceRepository {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer $token",
               },
-              body: jsonEncode(device.toJson()),
+              body: jsonEncode(deviceJson),
             )
           : http.put(
               Uri.parse(url),
@@ -145,7 +150,7 @@ class DeviceRepository {
                 "Content-Type": "application/json",
                 "Authorization": "Bearer $token",
               },
-              body: jsonEncode(device.toJson()),
+              body: jsonEncode(deviceJson),
             ));
 
       if (response.statusCode == 200 || response.statusCode == 201) {

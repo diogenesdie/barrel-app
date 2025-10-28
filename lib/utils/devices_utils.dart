@@ -102,7 +102,7 @@ IconData getGroupIconData(String iconName) {
     case "pets":
       return FontAwesomeIcons.paw;
     case "share":
-      return FontAwesomeIcons.userGroup;
+      return FontAwesomeIcons.shareNodes;
     default:
       return FontAwesomeIcons.layerGroup; // ícone padrão
   }

@@ -1224,18 +1224,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                         }
                         final grouped = <Group, List<Device>>{};
                         for (final g in groups) {
-                          grouped[g] = devices.where((d) => d.groupId == g.id && !d.isShared).toList();
-                        }
-
-                        final sharedDevices = devices.where((d) => d.isShared).toList();
-                        if (sharedDevices.isNotEmpty) {
-                          grouped[Group(
-                            id: -999,
-                            name: "Compartilhados comigo",
-                            icon: "share",
-                            position: -1,
-                            isDefault: false,
-                          )] = sharedDevices;
+                          grouped[g] = devices.where((d) => d.groupId == g.id).toList();
                         }
 
                         return Column(

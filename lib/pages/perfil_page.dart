@@ -40,7 +40,7 @@ class _PerfilPageState extends State<PerfilPage> {
     final telefone = user?['telefone'] as String?;
 
     // tenta pegar do backend; se não vier, gera um placeholder estável
-    final backendCode = (user?['shareCode'] ?? user?['share_code'])?.toString();
+    final backendCode = (user?['code'])?.toString();
     final derived = "NÃO DISPONÍVEL"; // Exemplo simples; pode ser algo como um hash do user ID
 
     setState(() {

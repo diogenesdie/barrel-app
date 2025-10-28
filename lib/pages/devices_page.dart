@@ -15,6 +15,7 @@ import 'package:smart_home/models/device_share.dart';
 import 'package:smart_home/models/device_share_repository.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/devices_utils.dart';
+import 'package:smart_home/utils/session_utils.dart';
 
 LinearGradient appGradient(BuildContext context) => LinearGradient(
       colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
@@ -129,10 +130,13 @@ class _DevicesPageState extends State<DevicesPage> {
     setState(() => isLoadingShares = true);
 
     try {
+      final user = await SessionUtils.getUser();
+      if (user == null) return;
+
       final shares = await _shareRepo.getShares();
 
       setState(() {
-        _pendingShares = shares.where((share) => share.isPending).toList();
+        _pendingShares = shares.where((share) => share.isPending && share.ownerId != user['user_id']).toList();
       });
     } catch (e) {
       print("Erro ao carregar compartilhamentos: $e");
@@ -248,22 +252,7 @@ class _DevicesPageState extends State<DevicesPage> {
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
-    final sharedDevices = _devices.where((d) => d.isShared).toList();
-
     final sortedGroups = [...groups]..sort((a, b) => a.position.compareTo(b.position));
-
-    if (sharedDevices.isNotEmpty) {
-      sortedGroups.insert(
-        0,
-        Group(
-          id: -999,
-          name: "Compartilhados comigo",
-          icon: "share",
-          position: -1,
-          isDefault: false,
-        ),
-      );
-    }
 
     return Scaffold(
       floatingActionButton: Container(
@@ -357,7 +346,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                     await _deviceRepo.updateDevice(device);
                                   },
                                   builder: (context, candidateItems, rejectedItems) {
-                                    final groupDevices = group.id == -999 ? _devices.where((d) => d.isShared).toList() : _devices.where((d) => d.groupId == group.id && !d.isShared).toList();
+                                    final groupDevices = _devices.where((d) => d.groupId == group.id).toList();
 
                                     _controllers.putIfAbsent(group.id, () => ExpansionTileController());
 
@@ -593,7 +582,26 @@ class _DeviceCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(device.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                      Row(
+                        children: [
+                          Text(device.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                          const SizedBox(width: 6),
+                          if (device.isShared)
+                            Row(
+                              children: [
+                                Badge(
+                                  label: const Text(
+                                    'Compartilhado',
+                                    style: TextStyle(fontSize: 10, color: Colors.white),
+                                  ),
+                                  backgroundColor: Theme.of(context).primaryColorLight,
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                ),
+                                const SizedBox(width: 6),
+                              ],
+                            ),
+                        ],
+                      ),
                       const SizedBox(height: 2),
                       Row(
                         children: [
@@ -606,6 +614,9 @@ class _DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
+                //share button
+                const SizedBox(width: 8),
+                device.isShared ? const SizedBox.shrink() : _ShareButton(onTap: () {}),
                 const SizedBox(width: 8),
                 _GradientStarButton(
                   selected: device.isFavorite,
@@ -613,6 +624,38 @@ class _DeviceCard extends StatelessWidget {
                 ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ShareButton extends StatelessWidget {
+  final VoidCallback onTap;
+
+  const _ShareButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final grad = appGradient(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkResponse(
+        onTap: onTap,
+        radius: 24,
+        child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey.shade200),
+            shape: BoxShape.circle,
+            color: Colors.transparent,
+          ),
+          child: ShaderMask(
+            shaderCallback: (rect) => grad.createShader(rect),
+            blendMode: BlendMode.srcIn,
+            child: const Icon(Icons.ios_share_rounded, size: 26, color: Colors.white),
           ),
         ),
       ),
