@@ -87,6 +87,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "light";
     } else if (ssid.contains("SWITCH")) {
       return "switch";
+    } else if (ssid.contains("FEEDER")) {
+      return "feeder";
     } else if (ssid.contains("TRIGGER")) {
       return "trigger";
     } else if (ssid.contains("RF")) {
@@ -103,6 +105,8 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
       return "Smart Light";
     } else if (ssid.contains("SWITCH")) {
       return "Smart Switch";
+    } else if (ssid.contains("FEEDER")) {
+      return "Smart Feeder";
     } else if (ssid.contains("TRIGGER")) {
       return "Smart Trigger";
     } else if (ssid.contains("RF")) {

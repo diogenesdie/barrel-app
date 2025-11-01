@@ -18,6 +18,8 @@ String getDeviceType(String id) {
     return "trigger";
   } else if (id.contains("RF")) {
     return "rf";
+  } else if (id.contains("FEEDER")) {
+    return "feeder";
   }
 
   return "unknown";
@@ -34,9 +36,30 @@ String getDeviceName(String id) {
     return "Barrel Trigger";
   } else if (id.contains("RF")) {
     return "Barrel RF Controller";
+  } else if (id.contains("FEEDER")) {
+    return "Barrel Feeder";
   }
 
   return "Unknown";
+}
+
+String getDefaultIconNameByType(String type) {
+  switch (type) {
+    case "plug":
+      return "plug";
+    case "light":
+      return "lightbulb";
+    case "switch":
+      return "powerOff";
+    case "trigger":
+      return "bolt";
+    case "rf":
+      return "towerBroadcast";
+    case "feeder":
+      return "bowlFood";
+    default:
+      return "device_unknown";
+  }
 }
 
 dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnData = false}) {
@@ -74,6 +97,8 @@ dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnDa
       return returnData ? FontAwesomeIcons.bolt : Icon(FontAwesomeIcons.bolt, color: color);
     case "rf":
       return returnData ? FontAwesomeIcons.towerBroadcast : Icon(FontAwesomeIcons.towerBroadcast, color: color);
+    case "feeder":
+      return returnData ? FontAwesomeIcons.bowlFood : Icon(FontAwesomeIcons.bowlFood, color: color);
     default:
       return returnData ? Icons.device_unknown : Icon(Icons.device_unknown, color: color);
   }
@@ -147,6 +172,14 @@ Map<String, List<dynamic>> deviceTypeIcons = {
     {"icon": FontAwesomeIcons.bullhorn, "key": "bullhorn"},
     {"icon": FontAwesomeIcons.triangleExclamation, "key": "triangleExclamation"},
   ],
+  "feeder": [
+    {"icon": FontAwesomeIcons.bowlFood, "key": "bowlFood"},
+    {"icon": FontAwesomeIcons.bone, "key": "bone"},
+    {"icon": FontAwesomeIcons.dog, "key": "dog"},
+    {"icon": FontAwesomeIcons.cat, "key": "cat"},
+    {"icon": FontAwesomeIcons.clock, "key": "clock"},
+    {"icon": FontAwesomeIcons.utensils, "key": "utensils"},
+  ],
   "rf": [
     {"icon": FontAwesomeIcons.towerBroadcast, "key": "towerBroadcast"},
     {"icon": FontAwesomeIcons.wifi, "key": "wifi"},
@@ -202,7 +235,7 @@ Future<bool> resetDevice(Device device, BuildContext context, bool mounted) asyn
     }
     if (!ok) {
       final mqtt = MqttService();
-      ok = await mqtt.publishMessage(device.deviceId, "clear");
+      ok = await mqtt.publishMessage(device.id, device.deviceId, "clear");
     }
   } else {
     ok = await _sendHttpCommand(device, "clear", const Duration(seconds: 5));

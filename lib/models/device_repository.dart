@@ -21,6 +21,10 @@ class DeviceRepository {
 
   Box<Device> get _box => Hive.box<Device>(_boxName);
 
+  Future<Device?> getDeviceById(int id) async {
+    return _box.get(id);
+  }
+
   Future<void> addDevice(Device device, bool sync) async {
     await _box.put(device.id, device);
     if (sync) {
@@ -53,8 +57,9 @@ class DeviceRepository {
       device.isFavorite = false;
       await addOrRemoveToSharedPreferencesWhenFavorite(device);
     }
-
-    await syncDeviceDelete(id);
+    print("Removendo dispositivo localmente: $id");
+    print(device);
+    await syncDeviceDelete(device!.id);
   }
 
   Future<void> clearDevices() async {
@@ -109,6 +114,9 @@ class DeviceRepository {
           "Authorization": "Bearer $token",
         },
       );
+
+      print("Resposta delete dispositivo: ${id}");
+      print(response.body);
 
       if (response.statusCode != 200) {
         throw Exception("Erro ao deletar dispositivo: ${response.statusCode}");

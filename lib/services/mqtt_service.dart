@@ -1,5 +1,8 @@
 import 'package:mqtt_client/mqtt_client.dart';
 import 'package:mqtt_client/mqtt_server_client.dart';
+import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/models/device.dart';
+import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
 class MqttService {
@@ -68,8 +71,9 @@ class MqttService {
     _connected = false;
   }
 
-  Future<bool> publishMessage(String deviceId, String message) async {
-    String? username = await SessionUtils.getUsername();
+  Future<bool> publishMessage(int id, String deviceId, String message) async {
+    Device? device = await DeviceRepository(apiBaseUrl: BASE_API_URL).getDeviceById(id);
+    final username = device?.owner_username;
 
     if (username == null) {
       print("🚨 Usuário não autenticado");
@@ -106,9 +110,10 @@ class MqttService {
     return false;
   }
 
-  void subscribe(String deviceId) async {
+  void subscribe(int id, String deviceId) async {
     try {
-      String? username = await SessionUtils.getUsername();
+      Device? device = await DeviceRepository(apiBaseUrl: BASE_API_URL).getDeviceById(id);
+      final username = device?.owner_username;
 
       if (username == null) {
         print("🚨 Usuário não autenticado");

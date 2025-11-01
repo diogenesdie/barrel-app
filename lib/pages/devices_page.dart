@@ -14,6 +14,7 @@ import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/models/device_share.dart';
 import 'package:smart_home/models/device_share_repository.dart';
 import 'package:smart_home/pages/auth_page.dart';
+import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
@@ -238,10 +239,10 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
-  Future<void> _shareDevice() async {
+  Future<void> _shareDevice(int deviceId) async {
     final result = await showDialog(
       context: context,
-      builder: (_) => ShareDeviceDialog(deviceId: 1),
+      builder: (_) => ShareDeviceDialog(deviceId: deviceId),
     );
 
     if (result == true) {
@@ -433,7 +434,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                               icon: Icons.ios_share_rounded,
                                               tooltip: "Compartilhar grupo",
                                               onTap: () {
-                                                _shareDevice();
+                                                _shareDevice(1);
                                               },
                                             ),
                                           ],
@@ -451,6 +452,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                                       child: SizedBox(
                                                         width: screenWidth - 32,
                                                         child: _DeviceCard(
+                                                          context: context,
                                                           device: d,
                                                           onFavorite: () {},
                                                           onOpen: () {},
@@ -461,6 +463,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                                   childWhenDragging: Opacity(
                                                     opacity: 0.4,
                                                     child: _DeviceCard(
+                                                      context: context,
                                                       device: d,
                                                       onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
                                                       onOpen: () {},
@@ -469,21 +472,33 @@ class _DevicesPageState extends State<DevicesPage> {
                                                   child: Padding(
                                                     padding: const EdgeInsets.symmetric(vertical: 4),
                                                     child: _DeviceCard(
+                                                      context: context,
                                                       device: d,
                                                       onFavorite: () {
                                                         setState(() => d.isFavorite = !d.isFavorite);
                                                         _deviceRepo.updateDevice(d);
                                                       },
                                                       onOpen: () async {
-                                                        final updated = await Navigator.push<Device>(
+                                                        final ok = await BiometricUtils.authenticate(
+                                                          'edit_device',
+                                                          reason: "Autentique-se para editar o dispositivo",
+                                                        );
+                                                        if (!ok) return;
+
+                                                        final result = await Navigator.push(
                                                           context,
                                                           MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
                                                         );
-                                                        if (updated != null) {
+                                                        if (result is Device) {
                                                           setState(() {
-                                                            final idx = _devices.indexWhere((e) => e.id == updated.id);
-                                                            if (idx >= 0) _devices[idx] = updated;
+                                                            final idx = _devices.indexWhere((e) => e.id == result.id);
+                                                            if (idx >= 0) {
+                                                              _devices[idx] = result;
+                                                            }
                                                           });
+                                                        }
+                                                        if (result == true) {
+                                                          await _refreshPage();
                                                         }
                                                       },
                                                     ),
@@ -536,12 +551,21 @@ class _DeviceCard extends StatelessWidget {
   final Device device;
   final VoidCallback onFavorite;
   final VoidCallback onOpen;
+  final BuildContext context;
 
   const _DeviceCard({
     required this.device,
     required this.onFavorite,
     required this.onOpen,
+    required this.context,
   });
+
+  Future<void> _shareDevice(int deviceId) async {
+    await showDialog(
+      context: context,
+      builder: (_) => ShareDeviceDialog(deviceId: deviceId),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -614,9 +638,12 @@ class _DeviceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                //share button
                 const SizedBox(width: 8),
-                device.isShared ? const SizedBox.shrink() : _ShareButton(onTap: () {}),
+                device.isShared
+                    ? const SizedBox.shrink()
+                    : _ShareButton(onTap: () {
+                        _shareDevice(device.id);
+                      }),
                 const SizedBox(width: 8),
                 _GradientStarButton(
                   selected: device.isFavorite,
@@ -956,6 +983,12 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                         GradientButton(
                           error: true,
                           onPressed: () async {
+                            final ok = await BiometricUtils.authenticate(
+                              'edit_device',
+                              reason: "Autentique-se para editar o dispositivo",
+                            );
+                            if (!ok) return;
+
                             final confirmar = await showDialog<bool>(
                               context: context,
                               builder: (ctx) => AlertDialog(
@@ -994,7 +1027,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
 
                               await _deviceRepo.removeDevice(widget.device.id);
                               if (!mounted) return;
-                              Navigator.pop(context);
+                              Navigator.pop(context, true);
 
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(

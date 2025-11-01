@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/utils/widget_utils.dart';
+import 'package:http/http.dart' as http;
 
 class SessionUtils {
   static const _storage = FlutterSecureStorage();
@@ -102,5 +104,62 @@ class SessionUtils {
       return false;
     }
     return true;
+  }
+
+  static Future<bool> updateUserProfile(Map<String, dynamic> data) async {
+    try {
+      final token = await getToken();
+      if (token == null) throw Exception("Usuário não autenticado");
+
+      const apiUrl = "$BASE_API_URL/profile";
+
+      final response = await http.patch(
+        Uri.parse(apiUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(data),
+      );
+
+      if (response.statusCode == 200) {
+        final currentRaw = await _storage.read(key: _kUser);
+        Map<String, dynamic> currentUser = currentRaw != null ? jsonDecode(currentRaw) : {};
+
+        data.forEach((key, value) {
+          currentUser[key] = value;
+        });
+
+        await _storage.write(key: _kUser, value: jsonEncode(currentUser));
+
+        await syncCredentialsToPrefs();
+        updateWidget();
+
+        return true;
+      } else {
+        print("Erro ao atualizar perfil: ${response.statusCode} => ${response.body}");
+        return false;
+      }
+    } catch (e) {
+      print("Falha ao atualizar perfil: $e");
+      return false;
+    }
+  }
+
+  static Future<Map<String, bool>> getBiometricPreferences() async {
+    final user = await getUser();
+    if (user == null) {
+      return {
+        'biometric_login': false,
+        'biometric_edit': false,
+        'biometric_remove': false,
+      };
+    }
+
+    return {
+      'biometric_login': (user['biometric_login'] as bool?) ?? false,
+      'biometric_edit': (user['biometric_edit'] as bool?) ?? false,
+      'biometric_remove': (user['biometric_remove'] as bool?) ?? false,
+    };
   }
 }

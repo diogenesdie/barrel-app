@@ -43,6 +43,9 @@ class Device extends HiveObject {
   @HiveField(12)
   String icon = "";
 
+  @HiveField(13)
+  String owner_username = "";
+
   Device({
     required this.id,
     required this.deviceId,
@@ -57,6 +60,7 @@ class Device extends HiveObject {
     this.isFavorite = false,
     this.isShared = false,
     this.icon = "",
+    this.owner_username = "",
   });
 
   factory Device.fromJson(Map<String, dynamic> json) {
@@ -74,6 +78,7 @@ class Device extends HiveObject {
       groupId: json['group_id'],
       isShared: json['is_shared'] ?? false,
       icon: json['icon'] ?? '',
+      owner_username: json['owner_username'] ?? '',
     );
   }
 
@@ -92,6 +97,7 @@ class Device extends HiveObject {
     int? groupId,
     bool? isShared,
     String? icon,
+    String? owner_username,
   }) {
     return Device(
       id: id ?? this.id,
@@ -107,6 +113,7 @@ class Device extends HiveObject {
       groupId: groupId ?? this.groupId,
       isShared: isShared ?? this.isShared,
       icon: icon ?? this.icon,
+      owner_username: owner_username ?? this.owner_username,
     );
   }
 
@@ -123,6 +130,7 @@ class Device extends HiveObject {
         "group_id": groupId,
         "is_shared": isShared,
         "icon": icon,
+        "owner_username": owner_username,
       };
 
     Map<String, dynamic> toJsonWithId() => {
@@ -138,5 +146,6 @@ class Device extends HiveObject {
         "group_id": groupId,
         "is_shared": isShared,
         "icon": icon,
+        "owner_username": owner_username,
       };
 }

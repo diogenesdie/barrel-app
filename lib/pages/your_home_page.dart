@@ -332,7 +332,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       );
 
       for (var d in loadedDevices) {
-        mqtt.subscribe(d.deviceId);
+        mqtt.subscribe(d.id, d.deviceId);
       }
 
       mqtt.listen((topic, payload) async {
@@ -433,7 +433,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       }
       if (!ok) {
         final mqtt = MqttService();
-        ok = await mqtt.publishMessage(device.deviceId, newState);
+        ok = await mqtt.publishMessage(device.id, device.deviceId, newState);
       }
     } else {
       // MODO LOCAL → HTTP
@@ -570,6 +570,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                 deviceId: deviceId,
                 name: getDeviceName(deviceId),
                 type: getDeviceType(deviceId),
+                icon: getDefaultIconNameByType(getDeviceType(deviceId)),
                 ip: ip,
                 ivKey: chave_iv,
                 state: "off",
@@ -614,7 +615,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       ),
       builder: (context) {
         bool obscurePassword = true;
-        bool obscureAccessKey = true;
 
         final PageController pageController = PageController();
 
@@ -925,27 +925,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                                 ),
                               ),
                               const SizedBox(height: 16),
-
-                              TextField(
-                                controller: accessKeyController,
-                                obscureText: obscureAccessKey,
-                                keyboardType: TextInputType.number,
-                                maxLength: 6,
-                                decoration: InputDecoration(
-                                  labelText: "Chave de Acesso (6 dígitos)",
-                                  prefixIcon: const Icon(Icons.key),
-                                  counterText: "",
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      obscureAccessKey ? Icons.visibility : Icons.visibility_off,
-                                    ),
-                                    onPressed: () => setModalState(() {
-                                      obscureAccessKey = !obscureAccessKey;
-                                    }),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 12),
                               // ----- Botão Configurar -----
                               Container(
                                 width: double.infinity,

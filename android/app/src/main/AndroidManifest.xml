@@ -12,6 +12,8 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <uses-permission android:name="android.permission.USE_FINGERPRINT" />
 
     <!--
      Required to query activities that can process text, see:
@@ -93,6 +95,12 @@
                 <data android:scheme="https" android:host="barrelsmart.com" />
             </intent-filter>
 
+        </activity>
+        <activity
+            android:name="io.flutter.embedding.android.FlutterFragmentActivity"
+            android:exported="true"
+            android:theme="@style/LaunchTheme">
+            <!-- ... -->
         </activity>
         <!--
  Don't delete the meta-data below.

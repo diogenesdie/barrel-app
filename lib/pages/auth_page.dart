@@ -77,9 +77,7 @@ class GradientButton extends StatelessWidget {
       borderRadius: BorderRadius.circular(borderRadius),
       child: Ink(
         decoration: BoxDecoration(
-          gradient: isDisabled
-              ? gradDisabled
-              : grad,
+          gradient: isDisabled ? gradDisabled : grad,
           borderRadius: BorderRadius.circular(borderRadius),
         ),
         child: InkWell(
@@ -102,6 +100,7 @@ class GradientButton extends StatelessWidget {
 }
 
 const String _loginUrl = "$BASE_API_AUTH_URL/login";
+const String _registerUrl = "$BASE_API_AUTH_URL/register";
 
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
@@ -117,6 +116,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
   final _emailCtrl = TextEditingController();
   final _senhaCtrl = TextEditingController();
   final _confirmaCtrl = TextEditingController();
+  final _nomeCtrl = TextEditingController();
+  final _userCtrl = TextEditingController();
   final _senhaFocus = FocusNode();
 
   bool _obscure1 = true;
@@ -207,7 +208,6 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
 
     setState(() => _loading = true);
     try {
-      print("POST $_loginUrl");
       final resp = await http
           .post(
             Uri.parse(_loginUrl),
@@ -267,6 +267,71 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
       }
     } on http.ClientException catch (e) {
       _showSnack('Erro de rede: ${e.message}', isError: true);
+    } on TimeoutException {
+      _showSnack('Tempo esgotado. Verifique sua conexão.', isError: true);
+    } catch (e) {
+      _showSnack('Erro inesperado: $e', isError: true);
+    } finally {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  Future<void> _submitRegistro() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final nome = _nomeCtrl.text.trim();
+    final username = _userCtrl.text.trim();
+    final email = _emailCtrl.text.trim();
+    final senha = _senhaCtrl.text;
+
+    setState(() => _loading = true);
+
+    try {
+      // 1. cria usuário (isso deve disparar o Register no backend e já criar sessão)
+      final resp = await http
+          .post(
+            Uri.parse(_registerUrl),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'type': 'U', // ou o tipo padrão que teu backend espera
+              'username': username,
+              'name': nome,
+              'email': email,
+              'password': senha,
+            }),
+          )
+          .timeout(const Duration(seconds: 20));
+
+      if (resp.statusCode == 200 || resp.statusCode == 201) {
+        // a tua Register() do backend agora retorna *Session (mesmo formato do Login)
+        final body = jsonDecode(resp.body) as Map<String, dynamic>;
+        final data = body['data'] as Map<String, dynamic>?;
+
+        final token = data?['token'] as String?;
+        if (token == null || token.isEmpty) {
+          _showSnack('Registro OK mas resposta sem token.', isError: true);
+        } else {
+          // salva sessão local igual no login
+          await SessionUtils.saveSession(data!, senha);
+
+          _showSnack('Conta criada com sucesso!');
+
+          await syncData();
+          await _goHome();
+        }
+      } else {
+        String msg = 'Falha no registro (${resp.statusCode}).';
+        try {
+          final data = jsonDecode(resp.body);
+          if (data is Map && data['message'] is String) {
+            msg = data['message'];
+            if (msg == 'user already exists') {
+              msg = 'Usuário já existe.';
+            }
+          }
+        } catch (_) {}
+        _showSnack(msg, isError: true);
+      }
     } on TimeoutException {
       _showSnack('Tempo esgotado. Verifique sua conexão.', isError: true);
     } catch (e) {
@@ -610,19 +675,62 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     );
   }
 
+  String? _validaNome(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Informe seu nome';
+    if (v.trim().length < 2) return 'Nome muito curto';
+    return null;
+  }
+
+  String? _validaUsername(String? v) {
+    if (v == null || v.trim().isEmpty) return 'Informe um usuário';
+    if (!RegExp(r'^[a-zA-Z0-9._-]{3,}$').hasMatch(v.trim())) {
+      return 'Use pelo menos 3 caracteres (letras/números/ponto/_/-)';
+    }
+    return null;
+  }
+
+  String? _validaEmail(String? v) {
+    if (v == null || v.isEmpty) return 'Informe seu e-mail';
+    final ok = RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim());
+    if (!ok) return 'E-mail inválido';
+    return null;
+  }
+
   Widget _formRegistro() {
     return Form(
       key: _formKey,
       child: Column(
         children: [
+          // NOME
+          TextFormField(
+            controller: _nomeCtrl,
+            autofillHints: const [AutofillHints.name],
+            textCapitalization: TextCapitalization.words,
+            decoration: _dec('Nome completo'),
+            validator: _validaNome,
+          ),
+          const SizedBox(height: 12),
+
+          // USERNAME
+          TextFormField(
+            controller: _userCtrl,
+            autofillHints: const [AutofillHints.username],
+            decoration: _dec('Usuário'),
+            validator: _validaUsername,
+          ),
+          const SizedBox(height: 12),
+
+          // EMAIL
           TextFormField(
             controller: _emailCtrl,
             autofillHints: const [AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
             decoration: _dec('Email'),
-            validator: _validaUsuarioOuEmail,
+            validator: _validaEmail,
           ),
           const SizedBox(height: 12),
+
+          // SENHA
           TextFormField(
             controller: _senhaCtrl,
             autofillHints: const [AutofillHints.newPassword],
@@ -637,6 +745,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             validator: _validaSenha,
           ),
           const SizedBox(height: 12),
+
+          // CONFIRMAR SENHA
           TextFormField(
             controller: _confirmaCtrl,
             autofillHints: const [AutofillHints.newPassword],
@@ -656,20 +766,22 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             },
           ),
           const SizedBox(height: 16),
+
+          // BOTÃO REGISTRAR
           SizedBox(
             width: double.infinity,
             child: GradientButton(
               onPressed: _loading
                   ? null
-                  : () {
+                  : () async {
                       if (_formKey.currentState!.validate()) {
-                        // TODO: chamar endpoint de registro
-                        _showSnack('Registro: implemente o endpoint.', isError: true);
+                        await _submitRegistro();
                       }
                     },
               child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Registrar'),
             ),
           ),
+
           const SizedBox(height: 8),
           TextButton(
             onPressed: _loading ? null : () => setState(() => _mode = AuthMode.escolha),

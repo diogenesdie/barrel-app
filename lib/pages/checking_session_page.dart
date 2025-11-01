@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
 class CheckingSessionPage extends StatefulWidget {
@@ -28,7 +29,16 @@ class _CheckingSessionPageState extends State<CheckingSessionPage> {
         token.isNotEmpty &&
         expiresAt != null &&
         DateTime.now().isBefore(expiresAt)) {
-      Navigator.of(context).pushReplacementNamed('/home');
+      
+      final ok = await BiometricUtils.authenticate('login',
+        reason: "Autentique-se para acessar o aplicativo",
+      );
+      if (ok) {
+        Navigator.of(context).pushReplacementNamed('/home');
+        return;
+      }
+
+      Navigator.of(context).pushReplacementNamed('/auth');
     } else {
       Navigator.of(context).pushReplacementNamed('/auth');
     }
