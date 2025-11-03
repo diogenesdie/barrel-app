@@ -18,7 +18,7 @@ class _LoadingState extends State<Loading> with SingleTickerProviderStateMixin {
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 900),
+      duration: const Duration(milliseconds: 1200),
     )..repeat();
   }
 
@@ -30,49 +30,74 @@ class _LoadingState extends State<Loading> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final color = widget.color ?? Theme.of(context).primaryColorLight;
+    final primaryColor = widget.color ?? Theme.of(context).primaryColor;
+    final primaryLight = Theme.of(context).primaryColorLight;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(3, (index) {
-            return AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final t = (_controller.value + (index * 0.2)) % 1.0;
-                final dy = -4 * (1 - (t - 0.5).abs() * 2);
+        SizedBox(
+          height: 24,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: List.generate(3, (index) {
+              return AnimatedBuilder(
+                animation: _controller,
+                builder: (context, child) {
+                  // Delay progressivo para cada bolinha
+                  final progress = (_controller.value + (index * 0.33)) % 1.0;
+                  
+                  // Animação de bounce suave com amplitude reduzida
+                  final dy = -6 * (1 - (progress - 0.5).abs() * 2);
+                  
+                  // Escala pulsante mais sutil
+                  final scale = 1.0 + (0.15 * (1 - (progress - 0.5).abs() * 2));
+                  
+                  // Opacidade dinâmica
+                  final opacity = 0.6 + (0.4 * (1 - (progress - 0.5).abs() * 2));
 
-                return Transform.translate(
-                  offset: Offset(0, dy),
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 3),
-                    width: 6,
-                    height: 6,
-                    decoration: BoxDecoration(
-                      color: color,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: color.withOpacity(0.3),
-                          blurRadius: 2,
-                          offset: const Offset(0, 1),
+                  return Transform.translate(
+                    offset: Offset(0, dy),
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Container(
+                        margin: const EdgeInsets.symmetric(horizontal: 4),
+                        width: 9,
+                        height: 9,
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              primaryLight.withOpacity(opacity),
+                              primaryColor.withOpacity(opacity),
+                            ],
+                            begin: Alignment.topLeft,
+                            end: Alignment.bottomRight,
+                          ),
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: primaryColor.withOpacity(0.3 * opacity),
+                              blurRadius: 6,
+                              spreadRadius: 0.5,
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            );
-          }),
+                  );
+                },
+              );
+            }),
+          ),
         ),
         if (widget.mensagem != null) ...[
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             widget.mensagem!,
-            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
                   color: Colors.grey[600],
+                  fontSize: 13,
                 ),
             textAlign: TextAlign.center,
           ),

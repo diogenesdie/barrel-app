@@ -7,6 +7,7 @@ import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/pages/checking_session_page.dart';
 import 'package:smart_home/pages/home_page.dart';
 import 'package:smart_home/pages/auth_page.dart';
+import 'package:smart_home/pages/manage_shares_page.dart';
 
 class DevHttpOverrides extends HttpOverrides {
   @override
@@ -43,6 +44,7 @@ class SmartHomeApp extends StatelessWidget {
         '/': (_) => const CheckingSessionPage(),
         '/auth': (_) => const AuthPage(),
         '/home': (_) => const HomePage(),
+        '/manage_shares': (_) => const ManageShares(),
       },
       theme: ThemeData(
         // Corrige o roxo dos botões no Material 3

@@ -991,23 +991,116 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
 
                             final confirmar = await showDialog<bool>(
                               context: context,
-                              builder: (ctx) => AlertDialog(
-                                title: const Text('Confirmar remoção'),
-                                content: const Text(
-                                  'Tem certeza que deseja desconectar este dispositivo?\n'
-                                  'Essa ação apagará todas as configurações.',
+                              barrierDismissible: false,
+                              builder: (ctx) => Dialog(
+                                insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                                elevation: 8,
+                                backgroundColor: Colors.white,
+                                child: Padding(
+                                  padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      // Ícone dourado decorativo
+                                      Container(
+                                        padding: const EdgeInsets.all(14),
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            colors: [Color(0xFFB8860B), Color(0xFF5D4037)],
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                          ),
+                                        ),
+                                        child: const Icon(
+                                          FontAwesomeIcons.trashCan,
+                                          color: Colors.white,
+                                          size: 28,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 18),
+
+                                      // Título
+                                      const Text(
+                                        'Confirmar remoção',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 19,
+                                          fontWeight: FontWeight.w700,
+                                          color: Color(0xFF3E2723),
+                                          letterSpacing: 0.2,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+
+                                      // Texto explicativo
+                                      const Text(
+                                        'Tem certeza que deseja desconectar este dispositivo?\n'
+                                        'Essa ação apagará todas as configurações.',
+                                        textAlign: TextAlign.center,
+                                        style: TextStyle(
+                                          fontSize: 14.5,
+                                          height: 1.5,
+                                          color: Color(0xFF5D4037),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 22),
+
+                                      // Botões de ação
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: OutlinedButton(
+                                              style: OutlinedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                side: BorderSide(
+                                                  color: Colors.brown.shade400.withOpacity(0.5),
+                                                  width: 1.3,
+                                                ),
+                                              ),
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: Text(
+                                                'Cancelar',
+                                                style: TextStyle(
+                                                  color: Colors.brown.shade700,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.2,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: ElevatedButton(
+                                              style: ElevatedButton.styleFrom(
+                                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                                backgroundColor: Colors.redAccent,
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius: BorderRadius.circular(12),
+                                                ),
+                                                shadowColor: Colors.redAccent.withOpacity(0.3),
+                                                elevation: 4,
+                                              ),
+                                              onPressed: () => Navigator.pop(ctx, true),
+                                              child: const Text(
+                                                'Desconectar',
+                                                style: TextStyle(
+                                                  color: Colors.white,
+                                                  fontWeight: FontWeight.w600,
+                                                  letterSpacing: 0.3,
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
                                 ),
-                                actions: [
-                                  TextButton(
-                                    onPressed: () => Navigator.pop(ctx, false),
-                                    child: const Text('Cancelar'),
-                                  ),
-                                  ElevatedButton(
-                                    style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
-                                    onPressed: () => Navigator.pop(ctx, true),
-                                    child: const Text('Desconectar'),
-                                  ),
-                                ],
                               ),
                             );
 

@@ -15,11 +15,17 @@ class DeviceShareRepository {
 
       final response = await http.get(
         Uri.parse('$apiBaseUrl/shares'),
-        headers: {'Content-Type': 'application/json', 'Accept': 'application/json', 'Authorization': 'Bearer $token'},
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
       );
 
       if (response.statusCode == 200) {
-        final Map<String, dynamic> responseData = json.decode(response.body);
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final Map<String, dynamic> responseData = json.decode(decodedBody);
+
         final List<dynamic> sharesJson = responseData['data'] ?? [];
 
         return sharesJson.map((json) => DeviceShare.fromJson(json)).toList();

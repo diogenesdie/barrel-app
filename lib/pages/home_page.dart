@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/components/gradient_icon.dart';
@@ -22,6 +23,7 @@ class _HomePageState extends State<HomePage> {
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
   late final List<Widget> _pages;
+  late bool _isLoggedIn;
 
   bool _autoProtocol = true;
 
@@ -30,6 +32,11 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _loadDevices();
     _loadCommMode();
+    SessionUtils.isLoggedIn().then((value) {
+      setState(() {
+        _isLoggedIn = value;
+      });
+    });
 
     _pages = [const YourHomePage(), const DevicesPage(), const PerfilPage()];
   }
@@ -160,13 +167,24 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
         actions: [
-          IconButton(
-            tooltip: "Alterar modo de comunicação",
-            onPressed: _toggleCommunicationMode,
-            icon: Icon(
-              _autoProtocol ? Icons.wifi : Icons.home_filled,
+          if (_selectedIndex == 0)
+            IconButton(
+              tooltip: "Alterar modo de comunicação",
+              onPressed: _toggleCommunicationMode,
+              icon: Icon(
+                _autoProtocol ? Icons.wifi : Icons.home_filled,
+              ),
             ),
-          ),
+          if (_selectedIndex == 1 && _isLoggedIn)
+            IconButton(
+              tooltip: "Gerenciar compartilhamentos",
+              onPressed: () {
+                Navigator.of(context).pushNamed('/manage_shares');
+              },
+              icon: Icon(
+                FontAwesomeIcons.shareNodes,
+              ),
+            ),
         ],
         flexibleSpace: Container(
           decoration: BoxDecoration(

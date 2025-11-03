@@ -849,6 +849,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
                   _fadeInUpPersistent(
                     visible: _showForm,
                     child: Card(
+                      color: Colors.white.withOpacity(0.7),
                       elevation: 6,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       child: Padding(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
@@ -176,41 +177,65 @@ class _PerfilPageState extends State<PerfilPage> {
             backgroundColor: Colors.white,
             body: SafeArea(
               child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.person_outline, color: Colors.grey, size: 80),
-                    const SizedBox(height: 16),
-                    const Text(
-                      "Você não está logado",
-                      style: TextStyle(
-                        color: Colors.black87,
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(28),
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.05),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          FontAwesomeIcons.userLarge,
+                          color: Colors.black54,
+                          size: 80,
+                        ),
                       ),
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      "Entre na sua conta para acessar o perfil.",
-                      style: TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pushReplacement(
-                        context,
-                        MaterialPageRoute(builder: (_) => const AuthPage()),
+                      const SizedBox(height: 30),
+                      const Text(
+                        "Você não está logado",
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
                       ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blueAccent,
-                        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      const SizedBox(height: 8),
+                      const Text(
+                        "Faça login para acessar seu perfil e recursos personalizados.",
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.black54,
+                          fontSize: 14,
+                          height: 1.4,
+                        ),
                       ),
-                      child: const Text(
-                        "Fazer login",
-                        style: TextStyle(fontSize: 16),
+                      const SizedBox(height: 36),
+                      GradientButton(
+                        onPressed: () => Navigator.pushReplacement(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AuthPage()),
+                        ),
+                        child: const Text(
+                          "Entrar na conta",
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
-                    )
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),

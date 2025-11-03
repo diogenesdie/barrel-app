@@ -3,12 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:smart_home/pages/auth_page.dart'; // GradientButton
+import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
-import 'package:smart_home/core/constants.dart'; // <- onde está BASE_API_URL
+import 'package:smart_home/core/constants.dart';
 
 class ShareDeviceDialog extends StatefulWidget {
-  /// Informe pelo menos um dos dois:
   final int? deviceId;
   final int? groupId;
 
