@@ -163,9 +163,15 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
 
   @override
   void dispose() {
+    _nomeCtrl.dispose();
+    _userCtrl.dispose();
     _emailCtrl.dispose();
     _senhaCtrl.dispose();
     _confirmaCtrl.dispose();
+    _focusUser.dispose();
+    _focusEmail.dispose();
+    _focusSenha.dispose();
+    _focusConfirma.dispose();
     _senhaFocus.dispose();
     super.dispose();
   }
@@ -528,10 +534,17 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
   //   );
   // }
 
-  InputDecoration _dec(String label, {Widget? suffix}) {
+  InputDecoration _dec(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
-      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+      prefixIcon: Icon(icon, color: Colors.grey[600]),
+      filled: true,
+      fillColor: Colors.grey[100],
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(14),
+        borderSide: BorderSide.none,
+      ),
+      labelStyle: TextStyle(color: Colors.grey[700]),
       suffixIcon: suffix,
     );
   }
@@ -614,7 +627,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             controller: _emailCtrl,
             autofillHints: const [AutofillHints.username, AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
-            decoration: _dec('Email ou usuário'),
+            decoration: _dec('Email ou usuário', Icons.person),
             validator: _validaUsuarioOuEmail,
             onFieldSubmitted: (_) {
               FocusScope.of(context).requestFocus(_senhaFocus);
@@ -628,6 +641,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             focusNode: _senhaFocus,
             decoration: _dec(
               'Senha',
+              Icons.lock,
               suffix: IconButton(
                 onPressed: () => setState(() => _obscure1 = !_obscure1),
                 icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
@@ -696,6 +710,12 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     return null;
   }
 
+  // Adicione no início da classe _AuthPageState:
+  final _focusUser = FocusNode();
+  final _focusEmail = FocusNode();
+  final _focusSenha = FocusNode();
+  final _focusConfirma = FocusNode();
+
   Widget _formRegistro() {
     return Form(
       key: _formKey,
@@ -706,53 +726,67 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             controller: _nomeCtrl,
             autofillHints: const [AutofillHints.name],
             textCapitalization: TextCapitalization.words,
-            decoration: _dec('Nome completo'),
+            decoration: _dec('Nome completo', Icons.person_outline),
             validator: _validaNome,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_focusUser),
           ),
           const SizedBox(height: 12),
 
           // USERNAME
           TextFormField(
             controller: _userCtrl,
+            focusNode: _focusUser,
             autofillHints: const [AutofillHints.username],
-            decoration: _dec('Usuário'),
+            decoration: _dec('Usuário', Icons.person),
             validator: _validaUsername,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_focusEmail),
           ),
           const SizedBox(height: 12),
 
           // EMAIL
           TextFormField(
             controller: _emailCtrl,
+            focusNode: _focusEmail,
             autofillHints: const [AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
-            decoration: _dec('Email'),
+            decoration: _dec('Email', Icons.email),
             validator: _validaEmail,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_focusSenha),
           ),
           const SizedBox(height: 12),
 
           // SENHA
           TextFormField(
             controller: _senhaCtrl,
+            focusNode: _focusSenha,
             autofillHints: const [AutofillHints.newPassword],
             obscureText: _obscure1,
             decoration: _dec(
               'Senha',
+              Icons.lock,
               suffix: IconButton(
                 onPressed: () => setState(() => _obscure1 = !_obscure1),
                 icon: Icon(_obscure1 ? Icons.visibility : Icons.visibility_off),
               ),
             ),
             validator: _validaSenha,
+            textInputAction: TextInputAction.next,
+            onFieldSubmitted: (_) => FocusScope.of(context).requestFocus(_focusConfirma),
           ),
           const SizedBox(height: 12),
 
           // CONFIRMAR SENHA
           TextFormField(
             controller: _confirmaCtrl,
+            focusNode: _focusConfirma,
             autofillHints: const [AutofillHints.newPassword],
             obscureText: _obscure2,
             decoration: _dec(
               'Confirme a senha',
+              Icons.lock,
               suffix: IconButton(
                 onPressed: () => setState(() => _obscure2 = !_obscure2),
                 icon: Icon(_obscure2 ? Icons.visibility : Icons.visibility_off),
@@ -763,6 +797,12 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
               if (base != null) return base;
               if (v != _senhaCtrl.text) return 'As senhas não coincidem';
               return null;
+            },
+            textInputAction: TextInputAction.done,
+            onFieldSubmitted: (_) async {
+              if (_formKey.currentState!.validate() && !_loading) {
+                await _submitRegistro(); // dispara o botão
+              }
             },
           ),
           const SizedBox(height: 16),
@@ -781,7 +821,6 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
               child: _loading ? const SizedBox(height: 18, width: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Registrar'),
             ),
           ),
-
           const SizedBox(height: 8),
           TextButton(
             onPressed: _loading ? null : () => setState(() => _mode = AuthMode.escolha),
@@ -801,7 +840,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
             controller: _emailCtrl,
             autofillHints: const [AutofillHints.email],
             keyboardType: TextInputType.emailAddress,
-            decoration: _dec('Email'),
+            decoration: _dec('Email', Icons.email),
             validator: _validaUsuarioOuEmail,
           ),
           const SizedBox(height: 16),

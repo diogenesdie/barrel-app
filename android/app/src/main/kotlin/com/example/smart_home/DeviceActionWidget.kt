@@ -126,7 +126,6 @@ internal fun updateAppWidget(
 ) {
 val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences", Context.MODE_PRIVATE)
     val jsonDevices = sharedPreferences.getString("flutter.devices", "[]") // Get stored JSON array
-    Log.d("DeviceActionWidget", "Devices: $jsonDevices")
 
     val deviceList = mutableListOf<Device>()
     try {

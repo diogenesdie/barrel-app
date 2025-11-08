@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/session_utils.dart';
 import 'package:smart_home/utils/widget_utils.dart';
 import 'device.dart';
@@ -136,8 +137,6 @@ class DeviceRepository {
       final url = newDevice ? "$apiBaseUrl/devices" : "$apiBaseUrl/devices/${device.id}";
       final method = newDevice ? 'POST' : 'PUT';
 
-      print("Enviando dispositivo: ${device.toJson()}");
-
       final deviceJson = device.toJson();
       if (method == 'PUT') {
         deviceJson.remove('device_id');
@@ -168,6 +167,17 @@ class DeviceRepository {
           await _box.delete(device.id);
         }
         await addDevice(updatedDevice, false);
+
+        // Envia action para o ESP32 se houver ações associadas
+        if (device.actions != null && device.actions!.isNotEmpty) {
+          final mqtt = MqttService();
+          for (final action in device.actions!) {
+            Device targetDevice = await getDeviceById(action.targetDeviceId) as Device;
+            Device triggerDevice = await getDeviceById(action.triggerDeviceId) as Device;
+
+            await mqtt.publishMessage(triggerDevice.id, triggerDevice.deviceId, "action,${action.triggerEvent},${action.actionType},${targetDevice.ip},users/${targetDevice.owner_username}/${targetDevice.deviceId}/command");
+          }
+        }
       } else {
         throw Exception("Erro ao sincronizar dispositivo: ${response.statusCode}");
       }
@@ -190,7 +200,8 @@ class DeviceRepository {
       );
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final decoded = jsonDecode(decodedBody);
 
         if (decoded is Map<String, dynamic> && decoded['data'] is List) {
           final List<dynamic> remoteDevices = decoded['data'];

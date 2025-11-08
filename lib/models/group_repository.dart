@@ -135,7 +135,8 @@ class GroupRepository {
       );
 
       if (response.statusCode == 200) {
-        final decoded = jsonDecode(response.body);
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final decoded = jsonDecode(decodedBody);
 
         if (decoded is Map<String, dynamic> && decoded['data'] is List) {
           final List<dynamic> remoteGroups = decoded['data'];

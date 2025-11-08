@@ -23,10 +23,12 @@ import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/permission_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
+import 'package:smart_home/utils/tutorial_events.dart';
 import 'dart:async';
 
 import 'package:smart_home/utils/weather_utils.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
 const String wifiCharacteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
@@ -102,28 +104,55 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   late GroupRepository _groupRepo;
   void Function(void Function())? _modalSetState;
   late Group defaultGroup;
+  final GlobalKey _addDeviceKey = GlobalKey();
+  List<TargetFocus> _targets = [];
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    _requestBluetoothPermissions();
+    // Chama permissões primeiro e espera terminar antes do resto
+    _initializeApp();
+  }
 
-    _loadWeather();
+  Future<void> _initializeApp() async {
     ssidController = TextEditingController();
     passwordController = TextEditingController();
     accessKeyController = TextEditingController();
+
     _getWifiSSID();
     _deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
     _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
     _loadDevices();
     _loadGroups();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initTargets();
+      _showTutorialIfFirstTime();
+    });
+
+    await _requestPermissions();
+
+    // Agora sim pode carregar o resto
+    await _loadWeather();
+  }
+
+  void _onTutorialEvent() {
+    print("📢 Evento recebido no YourHomePage: ${tutorialNotifier.value}");
+    if (tutorialNotifier.value == "show_add_device") {
+      tutorialNotifier.value = null; // Limpa o evento
+      _showTutorialIfFirstTime();
+    }
   }
 
   @override
   void dispose() {
+    tutorialNotifier.removeListener(_onTutorialEvent); // 🔹 Remove o listener
     WidgetsBinding.instance.removeObserver(this);
+    ssidController.dispose();
+    passwordController.dispose();
+    accessKeyController.dispose();
     super.dispose();
   }
 
@@ -136,7 +165,69 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
-  Future<void> _requestBluetoothPermissions() async {
+  void _initTargets() {
+    _targets = [
+      TargetFocus(
+        identify: "add_device",
+        keyTarget: _addDeviceKey,
+        alignSkip: Alignment.bottomRight,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Adicionar novo dispositivo",
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Toque aqui para cadastrar um novo dispositivo na sua casa.",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Future<void> _showTutorialIfFirstTime() async {
+    final prefs = await SharedPreferences.getInstance();
+    final alreadyShown = prefs.getBool("tutorial_add_device_shown") ?? false;
+
+    if (alreadyShown) return;
+
+    await Future.delayed(const Duration(milliseconds: 500));
+    if (!mounted) return;
+
+    if (_addDeviceKey.currentContext == null) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      if (!mounted || _addDeviceKey.currentContext == null) return;
+    }
+
+    TutorialCoachMark(
+      targets: _targets,
+      colorShadow: Colors.black.withOpacity(0.7),
+      textSkip: "Pular",
+      opacityShadow: 0.8,
+      onFinish: () async {
+        await prefs.setBool("tutorial_add_device_shown", true);
+      },
+      onSkip: () {
+        prefs.setBool("tutorial_add_device_shown", true);
+        return true;
+      },
+    ).show(context: context);
+  }
+
+  Future<void> _requestPermissions() async {
     final scanStatus = await Permission.bluetoothScan.request();
     final connectStatus = await Permission.bluetoothConnect.request();
     final locStatus = await Permission.locationWhenInUse.request();
@@ -197,7 +288,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
-  void _loadWeather() async {
+  Future<void> _loadWeather() async {
     Map<String, double>? coords = await getCoords();
 
     if (coords == null) {
@@ -377,6 +468,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Disparado" : "Clique para disparar");
     } else if (device.type == "rf") {
       return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Enviando Sinal" : "Clique para enviar sinal");
+    } else if (device.type == "feeder") {
+      return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Liberando ração" : "Clique para liberar ração");
     } else {
       return SequentialTextSwitcher(
         text: device.state.toUpperCase() == "ON" ? "Ligado" : "Desligado",
@@ -422,6 +515,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       }
     } else if (device.type == "rf") {
       newState = "pulse";
+    } else if (device.type == "feeder") {
+      newState = "release";
     }
 
     bool ok = false;
@@ -482,7 +577,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     return ptr.address.address;
   }
 
-  Future<void> startDeviceConfig(BuildContext context, BluetoothDevice device, String deviceId, String credentials) async {
+  Future<void> startDeviceConfig(BuildContext context, BluetoothDevice device, String deviceId, String credentials, String? username) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -542,7 +637,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               }
 
               // Etapa 3: obter IP (discoverDeviceIp)
-              await device.disconnect();
+              if (device.isConnected) {
+                await device.disconnect();
+              }
               updateStep("Obtendo informações do dispositivo…");
               await Future.delayed(const Duration(seconds: 5));
               final ip = await discoverDeviceIp();
@@ -572,6 +669,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                 type: getDeviceType(deviceId),
                 icon: getDefaultIconNameByType(getDeviceType(deviceId)),
                 ip: ip,
+                owner_username: username ?? "",
                 ivKey: chave_iv,
                 state: "off",
                 ssid: _wifiSSID ?? "",
@@ -945,7 +1043,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                                     final userPass = await SessionUtils.getPassword();
                                     final credentials = "$ssid,$password,$username,$userPass";
                                     if (_configuringEsp != null) {
-                                      await startDeviceConfig(context, _configuringEsp!["device"], _configuringEsp!["id"], credentials);
+                                      await startDeviceConfig(context, _configuringEsp!["device"], _configuringEsp!["id"], credentials, username);
                                     }
                                   },
                                   label: const Text("Configurar"),
@@ -1068,6 +1166,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                 elevation: 2,
                 shadowColor: Colors.grey[200],
                 child: Container(
+                  height: 160,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(12),
                     gradient: getGradient(),
@@ -1099,7 +1198,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                           ],
                         ),
                         weather == null
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const Padding(padding: EdgeInsets.only(top: 40.0), child: CircularProgressIndicator(color: Colors.white))
                             : Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
@@ -1166,6 +1265,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                       ),
                       const Spacer(),
                       IconButton(
+                        key: _addDeviceKey,
                         style: IconButton.styleFrom(
                           backgroundColor: Theme.of(context).primaryColorLight.withOpacity(0.1),
                           shape: RoundedRectangleBorder(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
@@ -584,6 +585,42 @@ class _PerfilPageState extends State<PerfilPage> {
                             child: const Text(
                               "Sair da conta",
                               style: TextStyle(color: Colors.redAccent),
+                            ),
+                          ),
+                          const SizedBox(height: 20),
+
+                          OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              side: BorderSide(color: Theme.of(context).primaryColorLight),
+                            ),
+                            onPressed: () async {
+                              final prefs = await SharedPreferences.getInstance();
+                              await prefs.remove("tutorial_comm_mode_shown");
+                              await prefs.remove("tutorial_add_device_shown");
+                              await prefs.remove("tutorial_reorder_shown");
+                              await prefs.remove("tutorial_device_drag_shown");
+
+                              if (!mounted) return;
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: const Text("Tutoriais reiniciados! Eles aparecerão novamente."),
+                                  backgroundColor: Colors.green,
+                                  behavior: SnackBarBehavior.floating,
+                                  duration: const Duration(seconds: 3),
+                                ),
+                              );
+                            },
+                            icon: const Icon(Icons.restart_alt_rounded),
+                            label: const Text(
+                              "Rever tutoriais",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
                             ),
                           ),
                         ],

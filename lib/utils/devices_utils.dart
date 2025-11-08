@@ -243,3 +243,50 @@ Future<bool> resetDevice(Device device, BuildContext context, bool mounted) asyn
 
   return ok;
 }
+
+List<String> getActionsForType(String type) {
+  switch (type.toLowerCase()) {
+    case 'switch':
+      return ['Ligar', 'Desligar', 'Alternar'];
+    case 'rf':
+      return ['Pulsar'];
+    case 'feeder':
+      return ['Liberar'];
+    default:
+      return ['Sem ações disponíveis'];
+  }
+}
+
+String getActionCommand(String action) {
+  switch (action.toLowerCase()) {
+    case 'ligar':
+      return 'on';
+    case 'desligar':
+      return 'off';
+    case 'alternar':
+      return 'toggle';
+    case 'pulsar':
+      return 'pulse';
+    case 'liberar':
+      return 'release';
+    default:
+      return '';
+  }
+}
+
+String? getActionDisplayName(String command) {
+  switch (command.toLowerCase()) {
+    case 'on':
+      return 'Ligar';
+    case 'off':
+      return 'Desligar';
+    case 'toggle':
+      return 'Alternar';
+    case 'pulse':
+      return 'Pulsar';
+    case 'release':
+      return 'Liberar';
+    default:
+      return null;
+  }
+}

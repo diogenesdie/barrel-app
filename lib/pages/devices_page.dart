@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_home/components/device_warning.dart';
 import 'package:smart_home/components/dialogs/create_group_dialog.dart';
 import 'package:smart_home/components/dialogs/share_device_dialog.dart';
@@ -8,6 +9,7 @@ import 'package:smart_home/components/no_device.dart';
 import 'package:smart_home/components/sharing_notification_widget.dart';
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device.dart';
+import 'package:smart_home/models/device_action.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group.dart';
 import 'package:smart_home/models/group_repository.dart';
@@ -17,6 +19,7 @@ import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 LinearGradient appGradient(BuildContext context) => LinearGradient(
       colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
@@ -87,6 +90,16 @@ class _DevicesPageState extends State<DevicesPage> {
   Set<int> expandedGroups = {};
   final Map<int, ExpansionTileController> _controllers = {};
 
+  final GlobalKey _firstGroupKey = GlobalKey();
+  List<TargetFocus> _tutorialTargets = [];
+  bool _tutorialShown = false;
+
+  int? _tutorialDeviceId;
+  bool _deviceTutorialShown = false;
+  GlobalKey? _deviceTutorialKey;
+  GlobalKey? _deviceShareKey;
+  GlobalKey? _deviceFavoriteKey;
+
   @override
   void initState() {
     super.initState();
@@ -94,9 +107,200 @@ class _DevicesPageState extends State<DevicesPage> {
     _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
     _shareRepo = DeviceShareRepository(apiBaseUrl: BASE_API_URL);
 
-    _loadGroups();
-    _loadDevices();
-    _loadPendingShares();
+    _initializeData();
+  }
+
+  Future<void> _initializeData() async {
+    await _loadGroups();
+    await _loadDevices();
+    await _loadPendingShares();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _maybeShowReorderTutorial();
+    });
+  }
+
+  Future<void> _maybeShowReorderTutorial() async {
+    final prefs = await SharedPreferences.getInstance();
+    _tutorialShown = prefs.getBool("tutorial_reorder_shown") ?? false;
+
+    if (groups.isNotEmpty && !_tutorialShown) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      _initTutorialTargets();
+
+      TutorialCoachMark(
+        targets: _tutorialTargets,
+        colorShadow: Colors.black.withOpacity(0.7),
+        textSkip: "Pular",
+        opacityShadow: 0.8,
+        onFinish: () async {
+          await prefs.setBool("tutorial_reorder_shown", true);
+        },
+      ).show(context: context);
+    }
+  }
+
+  void _initTutorialTargets() {
+    _tutorialTargets = [
+      TargetFocus(
+        identify: "reorder_groups",
+        keyTarget: _firstGroupKey,
+        alignSkip: Alignment.bottomRight,
+        shape: ShapeLightFocus.RRect,
+        contents: [
+          TargetContent(
+            align: ContentAlign.bottom,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: const [
+                Text(
+                  "Organize seus grupos",
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                    fontSize: 20,
+                  ),
+                ),
+                SizedBox(height: 8),
+                Text(
+                  "Você pode arrastar os grupos e dispositivos para mudar a ordem deles na tela.",
+                  style: TextStyle(color: Colors.white, fontSize: 16),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    ];
+  }
+
+  Future<void> _maybeShowDeviceDragTutorial() async {
+    if (!mounted) return;
+
+    final prefs = await SharedPreferences.getInstance();
+    _deviceTutorialShown = prefs.getBool("tutorial_device_drag_shown") ?? false;
+
+    if (!_deviceTutorialShown && _tutorialDeviceId != null && _deviceTutorialKey != null && _deviceShareKey != null && _deviceFavoriteKey != null) {
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      if (!mounted) return;
+
+      TutorialCoachMark(
+        targets: [
+          // Etapa 1: Arrastar dispositivo
+          TargetFocus(
+            identify: "drag_device",
+            keyTarget: _deviceTutorialKey!,
+            shape: ShapeLightFocus.RRect,
+            radius: 8,
+            contents: [
+              TargetContent(
+                align: ContentAlign.top,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Arraste para mover",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Você pode segurar e arrastar este dispositivo para outro grupo.",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Etapa 2: Botão de favoritar
+          TargetFocus(
+            identify: "favorite_device",
+            keyTarget: _deviceFavoriteKey!,
+            shape: ShapeLightFocus.Circle,
+            radius: 8,
+            contents: [
+              TargetContent(
+                align: ContentAlign.bottom,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Adicionar aos favoritos",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Toque aqui para adicionar este dispositivo como widget na tela inicial do seu celular.",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          // Etapa 3: Botão de compartilhar
+          TargetFocus(
+            identify: "share_device",
+            keyTarget: _deviceShareKey!,
+            shape: ShapeLightFocus.Circle,
+            radius: 8,
+            contents: [
+              TargetContent(
+                align: ContentAlign.bottom,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: const [
+                    Text(
+                      "Compartilhar dispositivo",
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      "Toque aqui para compartilhar este dispositivo com outros usuários.",
+                      style: TextStyle(color: Colors.white, fontSize: 16),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ],
+        colorShadow: Colors.black.withOpacity(0.7),
+        textSkip: "Pular",
+        opacityShadow: 0.8,
+        onFinish: () async {
+          await prefs.setBool("tutorial_device_drag_shown", true);
+          setState(() {
+            _tutorialDeviceId = null;
+            _deviceTutorialKey = null;
+            _deviceShareKey = null;
+            _deviceFavoriteKey = null;
+          });
+        },
+        onSkip: () {
+          setState(() {
+            _tutorialDeviceId = null;
+            _deviceTutorialKey = null;
+            _deviceShareKey = null;
+            _deviceFavoriteKey = null;
+          });
+          return true;
+        },
+      ).show(context: context);
+    }
   }
 
   Future<void> _loadDevices() async {
@@ -324,6 +528,10 @@ class _DevicesPageState extends State<DevicesPage> {
 
                             setState(() {
                               groups = List.from(updated);
+                              _controllers.clear();
+                              for (final g in groups) {
+                                _controllers[g.id] = ExpansionTileController();
+                              }
                             });
 
                             Future.microtask(() async {
@@ -338,6 +546,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                 key: ValueKey(group.id),
                                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
                                 child: DragTarget<Device>(
+                                  key: group.id == sortedGroups.first.id ? _firstGroupKey : null,
                                   onWillAccept: (data) => data != null && data.groupId != group.id,
                                   onAccept: (device) async {
                                     setState(() {
@@ -361,6 +570,19 @@ class _DevicesPageState extends State<DevicesPage> {
                                         setState(() {
                                           if (expanded) {
                                             expandedGroups.add(group.id);
+
+                                            // Mostra o tutorial quando expandir um grupo com devices
+                                            final groupDevices = _devices.where((d) => d.groupId == group.id).toList();
+                                            if (groupDevices.isNotEmpty && !_deviceTutorialShown && _tutorialDeviceId == null) {
+                                              _tutorialDeviceId = groupDevices.first.id;
+                                              _deviceTutorialKey = GlobalKey();
+                                              _deviceShareKey = GlobalKey();
+                                              _deviceFavoriteKey = GlobalKey();
+
+                                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                                _maybeShowDeviceDragTutorial();
+                                              });
+                                            }
                                           } else {
                                             expandedGroups.remove(group.id);
                                           }
@@ -470,6 +692,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                                     ),
                                                   ),
                                                   child: Padding(
+                                                    key: d.id == _tutorialDeviceId ? _deviceTutorialKey : null, // Usa a key armazenada
                                                     padding: const EdgeInsets.symmetric(vertical: 4),
                                                     child: _DeviceCard(
                                                       context: context,
@@ -501,6 +724,8 @@ class _DevicesPageState extends State<DevicesPage> {
                                                           await _refreshPage();
                                                         }
                                                       },
+                                                      favoriteKey: d.id == _tutorialDeviceId ? _deviceFavoriteKey : null,
+                                                      shareKey: d.id == _tutorialDeviceId ? _deviceShareKey : null,
                                                     ),
                                                   ),
                                                 );
@@ -552,12 +777,16 @@ class _DeviceCard extends StatelessWidget {
   final VoidCallback onFavorite;
   final VoidCallback onOpen;
   final BuildContext context;
+  final GlobalKey? favoriteKey;
+  final GlobalKey? shareKey;
 
   const _DeviceCard({
     required this.device,
     required this.onFavorite,
     required this.onOpen,
     required this.context,
+    this.favoriteKey,
+    this.shareKey,
   });
 
   Future<void> _shareDevice(int deviceId) async {
@@ -641,11 +870,14 @@ class _DeviceCard extends StatelessWidget {
                 const SizedBox(width: 8),
                 device.isShared
                     ? const SizedBox.shrink()
-                    : _ShareButton(onTap: () {
-                        _shareDevice(device.id);
-                      }),
+                    : _ShareButton(
+                        onTap: () {
+                          _shareDevice(device.id);
+                        },
+                        key: shareKey),
                 const SizedBox(width: 8),
                 _GradientStarButton(
+                  key: favoriteKey,
                   selected: device.isFavorite,
                   onTap: onFavorite,
                 ),
@@ -660,14 +892,16 @@ class _DeviceCard extends StatelessWidget {
 
 class _ShareButton extends StatelessWidget {
   final VoidCallback onTap;
+  final GlobalKey? key;
 
-  const _ShareButton({required this.onTap});
+  const _ShareButton({required this.onTap, this.key});
 
   @override
   Widget build(BuildContext context) {
     final grad = appGradient(context);
 
     return Material(
+      key: key,
       color: Colors.transparent,
       child: InkResponse(
         onTap: onTap,
@@ -693,8 +927,9 @@ class _ShareButton extends StatelessWidget {
 class _GradientStarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
+  final GlobalKey? key;
 
-  const _GradientStarButton({required this.selected, required this.onTap});
+  const _GradientStarButton({required this.selected, required this.onTap, this.key});
 
   @override
   Widget build(BuildContext context) {
@@ -702,6 +937,7 @@ class _GradientStarButton extends StatelessWidget {
     final icon = selected ? Icons.star : Icons.star_border;
 
     return Material(
+      key: key,
       color: Colors.transparent,
       child: InkResponse(
         onTap: onTap,
@@ -756,7 +992,18 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     _deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
     _groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
 
-    _selectedGroupId = widget.device.groupId; // valor atual do device
+    _selectedGroupId = widget.device.groupId;
+
+    // 👇 Carregar actions existentes
+    if (widget.device.actions != null) {
+      for (var action in widget.device.actions!) {
+        _triggerActions[action.triggerEvent] = {
+          'deviceId': action.targetDeviceId,
+          'deviceName': '', // será preenchido ao carregar devices
+          'action': action.actionType,
+        };
+      }
+    }
 
     _loadGroups();
   }
@@ -764,6 +1011,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
   @override
   void dispose() {
     _nameCtrl.dispose();
+    _ipControl.dispose(); // 👈 adicione isso também
     super.dispose();
   }
 
@@ -797,6 +1045,158 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         isDense: true,
       );
+
+  final List<Map<String, dynamic>> _triggers = [
+    {"key": "single_click", "label": "Clique"},
+    {"key": "double_click", "label": "Clique duplo"},
+    {"key": "triple_click", "label": "Clique triplo"},
+    {"key": "long_click", "label": "Clique longo"},
+  ];
+
+  final Map<String, Map<String, dynamic>> _triggerActions = {};
+
+  List<Device> _availableDevices = [];
+
+  Future<void> _loadAvailableDevices() async {
+    try {
+      final devices = _deviceRepo.getDevices();
+      final filtered = devices.where((d) => d.id != widget.device.id).toList();
+
+      if (filtered.isEmpty) {
+        setState(() {
+          _availableDevices = [];
+          _triggerActions.clear();
+        });
+        return;
+      }
+
+      setState(() {
+        _availableDevices = filtered;
+
+        for (var key in _triggerActions.keys) {
+          final deviceId = _triggerActions[key]?['deviceId'];
+          if (deviceId != null) {
+            final device = _availableDevices.firstWhere(
+              (d) => d.id == deviceId,
+              orElse: () => _availableDevices.first,
+            );
+            _triggerActions[key]!['deviceName'] = device.name;
+          }
+        }
+      });
+    } catch (e) {
+      print("Erro ao carregar dispositivos disponíveis: $e");
+    }
+  }
+
+  List<Widget> _buildTriggerActions(BuildContext context) {
+    // dispara carregamento, mas não bloqueia a interface
+    if (_availableDevices.isEmpty) {
+      _loadAvailableDevices();
+    }
+
+    return _triggers.map((trigger) {
+      final key = trigger['key'];
+      final current = _triggerActions[key];
+
+      return Card(
+        elevation: 6,
+        color: Colors.white.withOpacity(0.7),
+        margin: const EdgeInsets.symmetric(vertical: 8),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    trigger['label'],
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  if (current != null && current['deviceId'] != null)
+                    IconButton(
+                      icon: const Icon(Icons.clear, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          _triggerActions.remove(key);
+                        });
+                      },
+                      tooltip: 'Remover ação',
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<int>(
+                value: _availableDevices.any((d) => d.id == current?['deviceId'])
+                    ? current != null
+                        ? current['deviceId']
+                        : null
+                    : null,
+                decoration: _dec('Dispositivo alvo'),
+                isExpanded: true,
+                items: _availableDevices.isNotEmpty
+                    ? _availableDevices.map((d) {
+                        return DropdownMenuItem<int>(
+                          value: d.id,
+                          child: Text(d.name),
+                        );
+                      }).toList()
+                    : [
+                        const DropdownMenuItem<int>(
+                          value: null,
+                          child: Text('Carregando dispositivos...'),
+                        )
+                      ],
+                onChanged: (value) {
+                  if (value != null && _availableDevices.isNotEmpty) {
+                    final selectedDevice = _availableDevices.firstWhere(
+                      (d) => d.id == value,
+                      orElse: () => _availableDevices.first, // fallback seguro
+                    );
+
+                    final actionOptions = getActionsForType(selectedDevice.type);
+
+                    setState(() {
+                      _triggerActions[key] = {
+                        'deviceId': selectedDevice.id,
+                        'deviceName': selectedDevice.name,
+                        'action': actionOptions.first,
+                      };
+                    });
+                  }
+                },
+              ),
+              const SizedBox(height: 10),
+              if (current != null && current['deviceId'] != null)
+                DropdownButtonFormField<String>(
+                  value: getActionDisplayName(current['action']),
+                  decoration: _dec('Ação'),
+                  isExpanded: true,
+                  items: getActionsForType(
+                    _availableDevices
+                        .firstWhere(
+                          (d) => d.id == current['deviceId'],
+                          orElse: () => _availableDevices.first,
+                        )
+                        .type,
+                  ).map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
+                  onChanged: (value) {
+                    if (value != null) {
+                      setState(() {
+                        _triggerActions[key]!['action'] = value;
+                      });
+                    }
+                  },
+                ),
+            ],
+          ),
+        ),
+      );
+    }).toList();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -852,6 +1252,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                 constraints: BoxConstraints(maxWidth: maxCardWidth),
                 child: Card(
                   elevation: 6,
+                  color: Colors.white.withOpacity(0.7),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   child: Padding(
                     padding: const EdgeInsets.all(20),
@@ -904,6 +1305,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                         const SizedBox(height: 10),
                         DropdownButtonFormField<int>(
                           value: _selectedGroupId ?? (_groups.isNotEmpty ? _groups.first.id : null),
+                          dropdownColor: Colors.white,
                           decoration: _dec('Grupo do dispositivo'),
                           items: [
                             ..._groups.map((g) {
@@ -953,26 +1355,69 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                             ),
                           ],
                         ),
+                        if (_type.toLowerCase() == 'trigger') ...[
+                          const SizedBox(height: 20),
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              "Ações de Gatilho",
+                              style: Theme.of(context).textTheme.titleMedium!.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.brown.shade800,
+                                  ),
+                            ),
+                          ),
+                          const SizedBox(height: 10),
+                          ..._buildTriggerActions(context),
+                        ],
                         const SizedBox(height: 20),
                         Row(
                           children: [
                             Expanded(
                               child: GradientButton(
                                 onPressed: () {
-                                  //needs the selected icon key to array
-                                  final updated = widget.device
-                                    ..name = _nameCtrl.text.trim()
-                                    ..type = _type
-                                    ..icon = _selectedIconKey;
+                                  try {
+                                    final actions = _triggerActions.entries
+                                        .where((e) => e.value['deviceId'] != null)
+                                        .map((e) => DeviceAction(
+                                              id: 0,
+                                              triggerEvent: e.key,
+                                              targetDeviceId: e.value['deviceId'],
+                                              actionType: getActionCommand(e.value['action']),
+                                              targetDeviceName: '',
+                                              targetDeviceIp: '',
+                                              targetDeviceQueue: '',
+                                              triggerDeviceId: widget.device.id,
+                                            ))
+                                        .toList();
 
-                                  if (_selectedGroupId != null) {
-                                    updated.groupId = _selectedGroupId!;
+                                    final updated = widget.device.copyWith(
+                                      name: _nameCtrl.text.trim(),
+                                      type: _type,
+                                      icon: _selectedIconKey,
+                                      groupId: _selectedGroupId,
+                                      actions: actions.isEmpty ? null : actions,
+                                    );
+
+                                    _deviceRepo.updateDevice(updated);
+                                    Navigator.pop(context, updated);
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Dispositivo atualizado com sucesso."),
+                                        backgroundColor: Colors.green,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
+                                  } catch (e) {
+                                    print("Erro ao salvar dispositivo: $e");
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text("Erro ao salvar dispositivo. Tente novamente."),
+                                        backgroundColor: Colors.red,
+                                        behavior: SnackBarBehavior.floating,
+                                      ),
+                                    );
                                   }
-
-                                  print(updated.toJsonWithId());
-
-                                  _deviceRepo.updateDevice(updated);
-                                  Navigator.pop(context, updated);
                                 },
                                 child: const Text('Salvar alterações'),
                               ),
@@ -1002,7 +1447,6 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      // Ícone dourado decorativo
                                       Container(
                                         padding: const EdgeInsets.all(14),
                                         decoration: const BoxDecoration(
@@ -1020,8 +1464,6 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                                         ),
                                       ),
                                       const SizedBox(height: 18),
-
-                                      // Título
                                       const Text(
                                         'Confirmar remoção',
                                         textAlign: TextAlign.center,
@@ -1033,8 +1475,6 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                                         ),
                                       ),
                                       const SizedBox(height: 12),
-
-                                      // Texto explicativo
                                       const Text(
                                         'Tem certeza que deseja desconectar este dispositivo?\n'
                                         'Essa ação apagará todas as configurações.',
@@ -1046,8 +1486,6 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                                         ),
                                       ),
                                       const SizedBox(height: 22),
-
-                                      // Botões de ação
                                       Row(
                                         children: [
                                           Expanded(

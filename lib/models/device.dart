@@ -1,4 +1,5 @@
 import 'package:hive/hive.dart';
+import 'package:smart_home/models/device_action.dart';
 
 part 'device.g.dart';
 
@@ -25,26 +26,29 @@ class Device extends HiveObject {
   @HiveField(6)
   String state;
 
-  @HiveField(7)
-  bool isFavorite = false;
+  @HiveField(7, defaultValue: false)
+  bool isFavorite;
 
   @HiveField(8)
   String ssid;
 
   @HiveField(9)
-  String communicationMode; // "auto" ou "local"
+  String communicationMode;
 
   @HiveField(10)
   int? groupId;
 
-  @HiveField(11)
-  bool isShared = false;
+  @HiveField(11, defaultValue: false)
+  bool isShared;
 
-  @HiveField(12)
-  String icon = "";
+  @HiveField(12, defaultValue: "")
+  String icon;
 
-  @HiveField(13)
-  String owner_username = "";
+  @HiveField(13, defaultValue: "")
+  String owner_username;
+
+  @HiveField(14)
+  List<DeviceAction>? actions;
 
   Device({
     required this.id,
@@ -61,6 +65,7 @@ class Device extends HiveObject {
     this.isShared = false,
     this.icon = "",
     this.owner_username = "",
+    this.actions,
   });
 
   factory Device.fromJson(Map<String, dynamic> json) {
@@ -79,10 +84,12 @@ class Device extends HiveObject {
       isShared: json['is_shared'] ?? false,
       icon: json['icon'] ?? '',
       owner_username: json['owner_username'] ?? '',
+      actions: (json['actions'] as List?)
+          ?.map((a) => DeviceAction.fromJson(a))
+          .toList(),
     );
   }
 
-  //copyWith method
   Device copyWith({
     int? id,
     String? deviceId,
@@ -98,6 +105,7 @@ class Device extends HiveObject {
     bool? isShared,
     String? icon,
     String? owner_username,
+    List<DeviceAction>? actions,
   }) {
     return Device(
       id: id ?? this.id,
@@ -114,6 +122,7 @@ class Device extends HiveObject {
       isShared: isShared ?? this.isShared,
       icon: icon ?? this.icon,
       owner_username: owner_username ?? this.owner_username,
+      actions: actions ?? this.actions,
     );
   }
 
@@ -131,9 +140,11 @@ class Device extends HiveObject {
         "is_shared": isShared,
         "icon": icon,
         "owner_username": owner_username,
+        if (actions != null)
+          "actions": actions!.map((a) => a.toJson()).toList(),
       };
 
-    Map<String, dynamic> toJsonWithId() => {
+  Map<String, dynamic> toJsonWithId() => {
         "id": id,
         "device_id": deviceId,
         "name": name,
@@ -147,5 +158,7 @@ class Device extends HiveObject {
         "is_shared": isShared,
         "icon": icon,
         "owner_username": owner_username,
+        if (actions != null)
+          "actions": actions!.map((a) => a.toJson()).toList(),
       };
 }

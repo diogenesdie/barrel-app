@@ -41,11 +41,6 @@ class _HomePageState extends State<HomePage> {
     _pages = [const YourHomePage(), const DevicesPage(), const PerfilPage()];
   }
 
-  @override
-  void dispose() {
-    super.dispose();
-  }
-
   Future<void> _loadDevices() async {
     final prefs = await SharedPreferences.getInstance();
     final devicesJson = prefs.getString("devices") ?? "[]";
@@ -69,6 +64,11 @@ class _HomePageState extends State<HomePage> {
       setState(() {
         _autoProtocol = savedMode;
       });
+    } else {
+      setState(() {
+        _autoProtocol = true;
+      });
+      _saveCommMode(true);
     }
   }
 
@@ -80,20 +80,14 @@ class _HomePageState extends State<HomePage> {
   void getDevicesStates(List<dynamic> devicesParam) async {
     for (final device in devicesParam) {
       final url = 'http://$PUBLIC_IP:${device["external_port"]}${device["routes"]["state"]}';
-
       try {
         final response = await http.get(
           Uri.parse(url),
-          headers: {
-            "Authorization": "Bearer $BEARER_TOKEN",
-          },
+          headers: {"Authorization": "Bearer $BEARER_TOKEN"},
         );
-
         if (response.statusCode == 200) {
           final deviceState = jsonDecode(response.body);
           device["props"]["state"] = deviceState["state"];
-        } else {
-          print('Falha ao obter o estado do dispositivo: ${response.statusCode}');
         }
       } catch (e) {
         print('Erro ao obter o estado do dispositivo: $e');
@@ -110,7 +104,7 @@ class _HomePageState extends State<HomePage> {
       _selectedIndex = index;
       _pageController.animateToPage(
         index,
-        duration: Duration(milliseconds: 300),
+        duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOutCubic,
       );
     });
@@ -127,10 +121,10 @@ class _HomePageState extends State<HomePage> {
 
     if (!isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
+        const SnackBar(
           backgroundColor: Colors.orangeAccent,
           content: Text("Você precisa estar logado para usar a comunicação Online."),
-          duration: const Duration(seconds: 2),
+          duration: Duration(seconds: 2),
           behavior: SnackBarBehavior.floating,
         ),
       );
@@ -160,7 +154,7 @@ class _HomePageState extends State<HomePage> {
         elevation: 10,
         shadowColor: Colors.grey[200],
         title: Row(
-          children: [
+          children: const [
             Icon(Icons.home_outlined),
             SizedBox(width: 10),
             Text('Barrel Smart Home'),
@@ -171,9 +165,7 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               tooltip: "Alterar modo de comunicação",
               onPressed: _toggleCommunicationMode,
-              icon: Icon(
-                _autoProtocol ? Icons.wifi : Icons.home_filled,
-              ),
+              icon: Icon(_autoProtocol ? Icons.wifi : Icons.home_filled),
             ),
           if (_selectedIndex == 1 && _isLoggedIn)
             IconButton(
@@ -181,9 +173,7 @@ class _HomePageState extends State<HomePage> {
               onPressed: () {
                 Navigator.of(context).pushNamed('/manage_shares');
               },
-              icon: Icon(
-                FontAwesomeIcons.shareNodes,
-              ),
+              icon: const Icon(FontAwesomeIcons.shareNodes),
             ),
         ],
         flexibleSpace: Container(
@@ -193,18 +183,18 @@ class _HomePageState extends State<HomePage> {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.vertical(
-              bottom: Radius.circular(30),
-            ),
+            borderRadius: const BorderRadius.vertical(bottom: Radius.circular(30)),
           ),
         ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(
-            bottom: Radius.circular(30),
-          ),
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(30)),
         ),
       ),
-      body: PageView(controller: _pageController, onPageChanged: _onPageChanged, children: _pages),
+      body: PageView(
+        controller: _pageController,
+        onPageChanged: _onPageChanged,
+        children: _pages,
+      ),
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,

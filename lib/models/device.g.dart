@@ -27,16 +27,18 @@ class DeviceAdapter extends TypeAdapter<Device> {
       ssid: fields[8] as String,
       communicationMode: fields[9] as String,
       groupId: fields[10] as int?,
-      isFavorite: fields[7] as bool,
-      isShared: fields[11] as bool,
-      icon: fields[12] as String,
+      isFavorite: fields[7] == null ? false : fields[7] as bool,
+      isShared: fields[11] == null ? false : fields[11] as bool,
+      icon: fields[12] == null ? '' : fields[12] as String,
+      owner_username: fields[13] == null ? '' : fields[13] as String,
+      actions: (fields[14] as List?)?.cast<DeviceAction>(),
     );
   }
 
   @override
   void write(BinaryWriter writer, Device obj) {
     writer
-      ..writeByte(13)
+      ..writeByte(15)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -62,7 +64,11 @@ class DeviceAdapter extends TypeAdapter<Device> {
       ..writeByte(11)
       ..write(obj.isShared)
       ..writeByte(12)
-      ..write(obj.icon);
+      ..write(obj.icon)
+      ..writeByte(13)
+      ..write(obj.owner_username)
+      ..writeByte(14)
+      ..write(obj.actions);
   }
 
   @override

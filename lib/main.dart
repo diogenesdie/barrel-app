@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:smart_home/models/device_action_repository.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/pages/checking_session_page.dart';
@@ -26,6 +27,7 @@ void main() async {
   }
 
   WidgetsFlutterBinding.ensureInitialized();
+  await DeviceActionRepository.initHive();
   await DeviceRepository.initHive();
   await GroupRepository.initHive();
 
@@ -167,6 +169,49 @@ class SmartHomeApp extends StatelessWidget {
         floatingActionButtonTheme: const FloatingActionButtonThemeData(
           backgroundColor: Colors.brown,
           foregroundColor: Colors.white,
+        ),
+        // inputDecorationTheme: InputDecorationTheme(
+        //   filled: true,
+        //   fillColor: Colors.white,
+        //   contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        //   labelStyle: TextStyle(
+        //     color: Colors.brown.shade700,
+        //     fontWeight: FontWeight.w500,
+        //   ),
+        //   floatingLabelStyle: TextStyle(
+        //     color: Theme.of(context).primaryColor,
+        //     fontWeight: FontWeight.w600,
+        //   ),
+        //   border: OutlineInputBorder(
+        //     borderRadius: BorderRadius.circular(12),
+        //     borderSide: BorderSide(color: Colors.brown.shade200),
+        //   ),
+        //   enabledBorder: OutlineInputBorder(
+        //     borderRadius: BorderRadius.circular(12),
+        //     borderSide: BorderSide(color: Colors.brown.shade200, width: 1),
+        //   ),
+        //   focusedBorder: OutlineInputBorder(
+        //     borderRadius: BorderRadius.circular(12),
+        //     borderSide: BorderSide(
+        //       color: Theme.of(context).primaryColor,
+        //       width: 1.6,
+        //     ),
+        //   ),
+        // ),
+        dropdownMenuTheme: DropdownMenuThemeData(
+          menuStyle: MenuStyle(
+            backgroundColor: const WidgetStatePropertyAll(Colors.white),
+            surfaceTintColor: const WidgetStatePropertyAll(Colors.white),
+            shadowColor: const WidgetStatePropertyAll(Colors.black26),
+            elevation: const WidgetStatePropertyAll(4),
+            shape: WidgetStatePropertyAll(
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+          textStyle: TextStyle(
+            color: Colors.grey.shade900,
+            fontWeight: FontWeight.w500,
+          ),
         ),
         tabBarTheme: TabBarTheme(
           labelColor: Colors.brown,
