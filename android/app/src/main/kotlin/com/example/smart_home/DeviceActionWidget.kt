@@ -21,7 +21,7 @@ import org.eclipse.paho.client.mqttv3.MqttException
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
-data class Device(val name: String, val route: String, val ip: String = "", val id: String = "", val icon: String = "ic_power")
+data class Device(val name: String, val route: String, val ip: String = "", val id: String = "", val icon: String = "ic_power", val type: String = "switch")
 
 /**
  * Implementation of App Widget functionality.
@@ -45,9 +45,12 @@ class DeviceActionWidget : HomeWidgetProvider() {
             val deviceName = intent.getStringExtra("device_name") ?: return
             val route = intent.getStringExtra("device_route") ?: return
             val ip = intent.getStringExtra("device_ip") ?: ""
+            val type = intent.getStringExtra("device_type") ?: "switch"
             val deviceId = intent.getStringExtra("device_id") ?: ""
             Log.d("DeviceActionWidget", "Button clicked for device: $deviceName")
             Log.d("DeviceActionWidget", "Route: $route")
+            Log.d("DeviceActionWidget", "IP: $ip")
+            Log.d("DeviceActionWidget", "Type: $type")
 
             val token = "d4f8a7e2-9b3c-4f6a-b5d1-7c9e1a0f2e8c"
             val url = "http://$ip:8080$route"
@@ -56,7 +59,15 @@ class DeviceActionWidget : HomeWidgetProvider() {
 
             val broker = "tcp://barrel.app.br:1883"
             val topic = "users/sprandel/${deviceId}/command"
-            val payload = "toggle"
+            var payload = "toggle"
+
+            if (type == "switch") {
+                payload = "toggle"
+            } else if (type == "feeder") {
+                payload = "release"
+            } else if (type == "rf") {
+                payload = "pulse"
+            }
             publishMqttMessage(context, broker, topic, payload)
         }
     }
@@ -136,10 +147,11 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
             val ip = deviceObject.getString("ip")
             val id = deviceObject.getString("device_id")
             val icon = deviceObject.optString("icon", "ic_power")
+            val type = deviceObject.optString("type", "switch")
 
 
             Log.d("DeviceActionWidget", "Device: $name")
-            deviceList.add(Device(name, "/command", ip, id, icon))
+            deviceList.add(Device(name, "/command", ip, id, icon, type))
         }
     } catch (e: Exception) {
         e.printStackTrace()
@@ -174,6 +186,7 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
             putExtra("device_route", device.route)
             putExtra("device_ip", device.ip)
             putExtra("device_id", device.id)
+            putExtra("device_type", device.type)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

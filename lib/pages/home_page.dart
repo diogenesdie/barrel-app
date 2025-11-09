@@ -136,12 +136,35 @@ class _HomePageState extends State<HomePage> {
     });
 
     await _saveCommMode(_autoProtocol);
+    final icon = _autoProtocol ? Icons.cloud : Icons.router;
+    final title = _autoProtocol ? "Modo Online" : "Modo Local";
+    final subtitle = _autoProtocol ? "Conecta via internet quando fora de casa" : "Conecta direto pelo Wi-Fi";
 
-    final mode = _autoProtocol ? "Automático (Local/Online)" : "Comunicação Local";
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text("Modo alterado para: $mode"),
-        duration: const Duration(seconds: 2),
+        content: Row(
+          children: [
+            Icon(icon, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    subtitle,
+                    style: const TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
       ),
     );
@@ -165,7 +188,7 @@ class _HomePageState extends State<HomePage> {
             IconButton(
               tooltip: "Alterar modo de comunicação",
               onPressed: _toggleCommunicationMode,
-              icon: Icon(_autoProtocol ? Icons.wifi : Icons.home_filled),
+              icon: Icon(_autoProtocol ? Icons.cloud : Icons.router),
             ),
           if (_selectedIndex == 1 && _isLoggedIn)
             IconButton(

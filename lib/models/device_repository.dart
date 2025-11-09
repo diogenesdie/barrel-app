@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:smart_home/models/device_action.dart';
 import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/session_utils.dart';
 import 'package:smart_home/utils/widget_utils.dart';
@@ -58,9 +59,15 @@ class DeviceRepository {
       device.isFavorite = false;
       await addOrRemoveToSharedPreferencesWhenFavorite(device);
     }
-    print("Removendo dispositivo localmente: $id");
-    print(device);
+
     await syncDeviceDelete(device!.id);
+
+    final actionBox = Hive.box<DeviceAction>("deviceActionsBox");
+    final actionsToRemove = actionBox.values.where((a) => a.targetDeviceId == id).toList();
+
+    for (final action in actionsToRemove) {
+      await actionBox.delete(action.key);
+    }
   }
 
   Future<void> clearDevices() async {
@@ -74,6 +81,9 @@ class DeviceRepository {
 
     final idStr = device.id.toString();
     final index = devicesList.indexWhere((d) => d['id'].toString() == idStr);
+
+    print("Device ${device.name} isFavorite: ${device.isFavorite}");
+    print("Favorites list before update: $devicesList");
 
     if (device.isFavorite) {
       if (index == -1) {
@@ -116,9 +126,6 @@ class DeviceRepository {
         },
       );
 
-      print("Resposta delete dispositivo: ${id}");
-      print(response.body);
-
       if (response.statusCode != 200) {
         throw Exception("Erro ao deletar dispositivo: ${response.statusCode}");
       }
@@ -142,6 +149,9 @@ class DeviceRepository {
         deviceJson.remove('device_id');
       }
 
+      print("Sincronizando dispositivo via $method para $url");
+      print("Dados do dispositivo: $deviceJson");
+
       final response = await (method == 'POST'
           ? http.post(
               Uri.parse(url),
@@ -159,6 +169,8 @@ class DeviceRepository {
               },
               body: jsonEncode(deviceJson),
             ));
+
+            print("Resposta da API: ${response.statusCode} - ${response.body}");
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final decoded = jsonDecode(response.body);

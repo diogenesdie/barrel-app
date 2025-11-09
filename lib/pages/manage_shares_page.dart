@@ -32,7 +32,6 @@ class _ManageSharesState extends State<ManageShares> {
     try {
       final user = await SessionUtils.getUser();
       if (user == null) {
-        // se não tiver sessão válida, talvez jogar pra tela de login
         setState(() {
           _myShares = [];
         });
@@ -42,7 +41,7 @@ class _ManageSharesState extends State<ManageShares> {
       final shares = await _shareRepo.getShares();
 
       setState(() {
-        _myShares = shares.where((share) => share.ownerId == user['user_id']).toList();
+        _myShares = shares.where((share) => share.ownerId == user['user_id'] && share.status != 'R').toList();
       });
     } catch (e) {
       debugPrint("Erro ao carregar meus compartilhamentos: $e");

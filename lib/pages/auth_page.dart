@@ -211,6 +211,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
 
     final username = _emailCtrl.text.trim();
     final password = _senhaCtrl.text;
+    
+    await SessionUtils.clearSession();
 
     setState(() => _loading = true);
     try {

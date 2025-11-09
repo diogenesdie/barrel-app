@@ -147,6 +147,7 @@ class Device extends HiveObject {
   Map<String, dynamic> toJsonWithId() => {
         "id": id,
         "device_id": deviceId,
+        "type": type,
         "name": name,
         "ip": ip,
         "iv_key": ivKey,

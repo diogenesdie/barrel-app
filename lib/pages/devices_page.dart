@@ -96,9 +96,31 @@ class _DevicesPageState extends State<DevicesPage> {
 
   int? _tutorialDeviceId;
   bool _deviceTutorialShown = false;
-  GlobalKey? _deviceTutorialKey;
-  GlobalKey? _deviceShareKey;
-  GlobalKey? _deviceFavoriteKey;
+
+  final Map<int, GlobalKey> _deviceTutorialKeys = {};
+  final Map<int, GlobalKey> _deviceShareKeys = {};
+  final Map<int, GlobalKey> _deviceFavoriteKeys = {};
+
+  GlobalKey _ensureDeviceTutorialKey(int deviceId) {
+    return _deviceTutorialKeys.putIfAbsent(
+      deviceId,
+      () => GlobalKey(debugLabel: 'device_tutorial_$deviceId'),
+    );
+  }
+
+  GlobalKey _ensureDeviceShareKey(int deviceId) {
+    return _deviceShareKeys.putIfAbsent(
+      deviceId,
+      () => GlobalKey(debugLabel: 'device_share_$deviceId'),
+    );
+  }
+
+  GlobalKey _ensureDeviceFavoriteKey(int deviceId) {
+    return _deviceFavoriteKeys.putIfAbsent(
+      deviceId,
+      () => GlobalKey(debugLabel: 'device_favorite_$deviceId'),
+    );
+  }
 
   @override
   void initState() {
@@ -108,6 +130,14 @@ class _DevicesPageState extends State<DevicesPage> {
     _shareRepo = DeviceShareRepository(apiBaseUrl: BASE_API_URL);
 
     _initializeData();
+  }
+
+  @override
+  void dispose() {
+    _deviceTutorialKeys.clear();
+    _deviceShareKeys.clear();
+    _deviceFavoriteKeys.clear();
+    super.dispose();
   }
 
   Future<void> _initializeData() async {
@@ -180,17 +210,25 @@ class _DevicesPageState extends State<DevicesPage> {
     final prefs = await SharedPreferences.getInstance();
     _deviceTutorialShown = prefs.getBool("tutorial_device_drag_shown") ?? false;
 
-    if (!_deviceTutorialShown && _tutorialDeviceId != null && _deviceTutorialKey != null && _deviceShareKey != null && _deviceFavoriteKey != null) {
+    if (!_deviceTutorialShown && _tutorialDeviceId != null) {
+      // Get the keys for the tutorial device
+      final deviceKey = _deviceTutorialKeys[_tutorialDeviceId!];
+      final shareKey = _deviceShareKeys[_tutorialDeviceId!];
+      final favoriteKey = _deviceFavoriteKeys[_tutorialDeviceId!];
+
+      if (deviceKey == null || shareKey == null || favoriteKey == null) {
+        return;
+      }
+
       await Future.delayed(const Duration(milliseconds: 300));
 
       if (!mounted) return;
 
       TutorialCoachMark(
         targets: [
-          // Etapa 1: Arrastar dispositivo
           TargetFocus(
             identify: "drag_device",
-            keyTarget: _deviceTutorialKey!,
+            keyTarget: deviceKey,
             shape: ShapeLightFocus.RRect,
             radius: 8,
             contents: [
@@ -217,10 +255,9 @@ class _DevicesPageState extends State<DevicesPage> {
               ),
             ],
           ),
-          // Etapa 2: Botão de favoritar
           TargetFocus(
             identify: "favorite_device",
-            keyTarget: _deviceFavoriteKey!,
+            keyTarget: favoriteKey,
             shape: ShapeLightFocus.Circle,
             radius: 8,
             contents: [
@@ -247,10 +284,9 @@ class _DevicesPageState extends State<DevicesPage> {
               ),
             ],
           ),
-          // Etapa 3: Botão de compartilhar
           TargetFocus(
             identify: "share_device",
-            keyTarget: _deviceShareKey!,
+            keyTarget: shareKey,
             shape: ShapeLightFocus.Circle,
             radius: 8,
             contents: [
@@ -285,17 +321,19 @@ class _DevicesPageState extends State<DevicesPage> {
           await prefs.setBool("tutorial_device_drag_shown", true);
           setState(() {
             _tutorialDeviceId = null;
-            _deviceTutorialKey = null;
-            _deviceShareKey = null;
-            _deviceFavoriteKey = null;
+            // Clear the keys for the tutorial device
+            _deviceTutorialKeys.clear();
+            _deviceShareKeys.clear();
+            _deviceFavoriteKeys.clear();
           });
         },
         onSkip: () {
           setState(() {
             _tutorialDeviceId = null;
-            _deviceTutorialKey = null;
-            _deviceShareKey = null;
-            _deviceFavoriteKey = null;
+            // Clear the keys for the tutorial device
+            _deviceTutorialKeys.clear();
+            _deviceShareKeys.clear();
+            _deviceFavoriteKeys.clear();
           });
           return true;
         },
@@ -549,6 +587,7 @@ class _DevicesPageState extends State<DevicesPage> {
                                   key: group.id == sortedGroups.first.id ? _firstGroupKey : null,
                                   onWillAccept: (data) => data != null && data.groupId != group.id,
                                   onAccept: (device) async {
+                                    print("Dispositivo ${device.name} movido para o grupo ${group.name}");
                                     setState(() {
                                       device.groupId = group.id;
                                     });
@@ -571,13 +610,13 @@ class _DevicesPageState extends State<DevicesPage> {
                                           if (expanded) {
                                             expandedGroups.add(group.id);
 
-                                            // Mostra o tutorial quando expandir um grupo com devices
                                             final groupDevices = _devices.where((d) => d.groupId == group.id).toList();
                                             if (groupDevices.isNotEmpty && !_deviceTutorialShown && _tutorialDeviceId == null) {
                                               _tutorialDeviceId = groupDevices.first.id;
-                                              _deviceTutorialKey = GlobalKey();
-                                              _deviceShareKey = GlobalKey();
-                                              _deviceFavoriteKey = GlobalKey();
+
+                                              _ensureDeviceTutorialKey(_tutorialDeviceId!);
+                                              _ensureDeviceShareKey(_tutorialDeviceId!);
+                                              _ensureDeviceFavoriteKey(_tutorialDeviceId!);
 
                                               WidgetsBinding.instance.addPostFrameCallback((_) {
                                                 _maybeShowDeviceDragTutorial();
@@ -665,67 +704,72 @@ class _DevicesPageState extends State<DevicesPage> {
                                       children: [
                                         ...(groupDevices.isNotEmpty
                                             ? groupDevices.map((d) {
-                                                return LongPressDraggable<Device>(
-                                                  data: d,
-                                                  feedback: Material(
-                                                    color: Colors.transparent,
-                                                    child: Opacity(
-                                                      opacity: 0.7,
-                                                      child: SizedBox(
-                                                        width: screenWidth - 32,
-                                                        child: _DeviceCard(
-                                                          context: context,
-                                                          device: d,
-                                                          onFavorite: () {},
-                                                          onOpen: () {},
+                                                final isTutorialDevice = d.id == _tutorialDeviceId;
+
+                                                return RepaintBoundary(
+                                                  key: ValueKey('repaint_${d.id}'),
+                                                  child: LongPressDraggable<Device>(
+                                                    data: d,
+                                                    feedback: Material(
+                                                      color: Colors.transparent,
+                                                      child: Opacity(
+                                                        opacity: 0.7,
+                                                        child: SizedBox(
+                                                          width: screenWidth - 32,
+                                                          child: _DeviceCard(
+                                                            context: context,
+                                                            device: d,
+                                                            onFavorite: () {},
+                                                            onOpen: () {},
+                                                          ),
                                                         ),
                                                       ),
                                                     ),
-                                                  ),
-                                                  childWhenDragging: Opacity(
-                                                    opacity: 0.4,
-                                                    child: _DeviceCard(
-                                                      context: context,
-                                                      device: d,
-                                                      onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
-                                                      onOpen: () {},
+                                                    childWhenDragging: Opacity(
+                                                      opacity: 0.4,
+                                                      child: _DeviceCard(
+                                                        context: context,
+                                                        device: d,
+                                                        onFavorite: () => setState(() => d.isFavorite = !d.isFavorite),
+                                                        onOpen: () {},
+                                                      ),
                                                     ),
-                                                  ),
-                                                  child: Padding(
-                                                    key: d.id == _tutorialDeviceId ? _deviceTutorialKey : null, // Usa a key armazenada
-                                                    padding: const EdgeInsets.symmetric(vertical: 4),
-                                                    child: _DeviceCard(
-                                                      context: context,
-                                                      device: d,
-                                                      onFavorite: () {
-                                                        setState(() => d.isFavorite = !d.isFavorite);
-                                                        _deviceRepo.updateDevice(d);
-                                                      },
-                                                      onOpen: () async {
-                                                        final ok = await BiometricUtils.authenticate(
-                                                          'edit_device',
-                                                          reason: "Autentique-se para editar o dispositivo",
-                                                        );
-                                                        if (!ok) return;
+                                                    child: Container(
+                                                      key: isTutorialDevice ? _ensureDeviceTutorialKey(d.id) : null,
+                                                      padding: const EdgeInsets.symmetric(vertical: 4),
+                                                      child: _DeviceCard(
+                                                        context: context,
+                                                        device: d,
+                                                        onFavorite: () {
+                                                          setState(() => d.isFavorite = !d.isFavorite);
+                                                          _deviceRepo.updateDevice(d);
+                                                        },
+                                                        onOpen: () async {
+                                                          final ok = await BiometricUtils.authenticate(
+                                                            'edit_device',
+                                                            reason: "Autentique-se para editar o dispositivo",
+                                                          );
+                                                          if (!ok) return;
 
-                                                        final result = await Navigator.push(
-                                                          context,
-                                                          MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
-                                                        );
-                                                        if (result is Device) {
-                                                          setState(() {
-                                                            final idx = _devices.indexWhere((e) => e.id == result.id);
-                                                            if (idx >= 0) {
-                                                              _devices[idx] = result;
-                                                            }
-                                                          });
-                                                        }
-                                                        if (result == true) {
-                                                          await _refreshPage();
-                                                        }
-                                                      },
-                                                      favoriteKey: d.id == _tutorialDeviceId ? _deviceFavoriteKey : null,
-                                                      shareKey: d.id == _tutorialDeviceId ? _deviceShareKey : null,
+                                                          final result = await Navigator.push(
+                                                            context,
+                                                            MaterialPageRoute(builder: (_) => DeviceEditPage(device: d)),
+                                                          );
+                                                          if (result is Device) {
+                                                            setState(() {
+                                                              final idx = _devices.indexWhere((e) => e.id == result.id);
+                                                              if (idx >= 0) {
+                                                                _devices[idx] = result;
+                                                              }
+                                                            });
+                                                          }
+                                                          if (result == true) {
+                                                            await _refreshPage();
+                                                          }
+                                                        },
+                                                        favoriteKey: isTutorialDevice ? _ensureDeviceFavoriteKey(d.id) : null,
+                                                        shareKey: isTutorialDevice ? _ensureDeviceShareKey(d.id) : null,
+                                                      ),
                                                     ),
                                                   ),
                                                 );
@@ -874,10 +918,10 @@ class _DeviceCard extends StatelessWidget {
                         onTap: () {
                           _shareDevice(device.id);
                         },
-                        key: shareKey),
+                        shareKey: shareKey),
                 const SizedBox(width: 8),
                 _GradientStarButton(
-                  key: favoriteKey,
+                  favoriteKey: favoriteKey,
                   selected: device.isFavorite,
                   onTap: onFavorite,
                 ),
@@ -892,16 +936,16 @@ class _DeviceCard extends StatelessWidget {
 
 class _ShareButton extends StatelessWidget {
   final VoidCallback onTap;
-  final GlobalKey? key;
+  final GlobalKey? shareKey;
 
-  const _ShareButton({required this.onTap, this.key});
+  const _ShareButton({required this.onTap, this.shareKey});
 
   @override
   Widget build(BuildContext context) {
     final grad = appGradient(context);
 
     return Material(
-      key: key,
+      key: shareKey,
       color: Colors.transparent,
       child: InkResponse(
         onTap: onTap,
@@ -927,9 +971,9 @@ class _ShareButton extends StatelessWidget {
 class _GradientStarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
-  final GlobalKey? key;
+  final GlobalKey? favoriteKey;
 
-  const _GradientStarButton({required this.selected, required this.onTap, this.key});
+  const _GradientStarButton({required this.selected, required this.onTap, this.favoriteKey});
 
   @override
   Widget build(BuildContext context) {
@@ -937,7 +981,7 @@ class _GradientStarButton extends StatelessWidget {
     final icon = selected ? Icons.star : Icons.star_border;
 
     return Material(
-      key: key,
+      key: favoriteKey,
       color: Colors.transparent,
       child: InkResponse(
         onTap: onTap,
@@ -1136,6 +1180,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                         : null
                     : null,
                 decoration: _dec('Dispositivo alvo'),
+                dropdownColor: Colors.white,
                 isExpanded: true,
                 items: _availableDevices.isNotEmpty
                     ? _availableDevices.map((d) {
@@ -1174,6 +1219,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                 DropdownButtonFormField<String>(
                   value: getActionDisplayName(current['action']),
                   decoration: _dec('Ação'),
+                  dropdownColor: Colors.white,
                   isExpanded: true,
                   items: getActionsForType(
                     _availableDevices

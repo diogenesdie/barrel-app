@@ -143,9 +143,9 @@ String getDeviceSubtitle(String type) {
     case "light":
       return 'Lâmpada Inteligente';
     case "switch":
-      return 'Interruptor Inteligente';
+      return 'Tomada Inteligente';
     case "trigger":
-      return 'Gatilho Inteligente';
+      return 'Interruptor Inteligente';
     default:
       return 'Dispositivo Desconhecido';
   }

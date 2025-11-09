@@ -20,6 +20,7 @@ import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group.dart';
 import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/services/mqtt_service.dart';
+import 'package:smart_home/utils/crypto_utils.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/permission_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
@@ -28,6 +29,7 @@ import 'dart:async';
 
 import 'package:smart_home/utils/weather_utils.dart';
 import 'package:network_info_plus/network_info_plus.dart';
+import 'package:smart_home/utils/wifi_utils.dart';
 import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
@@ -36,16 +38,18 @@ const String wifiCharacteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
 class AnimatedGradientButton extends StatelessWidget {
   final bool stateOn;
   final IconData icon;
+  final bool autoMode;
 
   const AnimatedGradientButton({
     super.key,
     required this.stateOn,
     required this.icon,
+    required this.autoMode,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = stateOn ? [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor] : [Colors.grey[600]!, Colors.grey[800]!];
+    final colors = stateOn || autoMode == false ? [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor] : [Colors.grey[600]!, Colors.grey[800]!];
 
     return TweenAnimationBuilder<Color?>(
       tween: ColorTween(begin: colors.first, end: colors.first),
@@ -112,8 +116,45 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
-    // Chama permissões primeiro e espera terminar antes do resto
     _initializeApp();
+    _loadCommMode();
+
+    _startPrefsListener();
+  }
+
+  bool _autoProtocol = true;
+  Timer? _prefsCheckTimer;
+
+  void _startPrefsListener() {
+    _prefsCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
+      if (!mounted) {
+        timer.cancel();
+        return;
+      }
+
+      final prefs = await SharedPreferences.getInstance();
+      final savedMode = prefs.getBool(COMM_KEY) ?? true;
+
+      if (savedMode != _autoProtocol) {
+        setState(() {
+          _autoProtocol = savedMode;
+        });
+      }
+    });
+  }
+
+  Future<void> _loadCommMode() async {
+    final prefs = await SharedPreferences.getInstance();
+    final savedMode = prefs.getBool(COMM_KEY);
+    if (savedMode != null) {
+      setState(() {
+        _autoProtocol = savedMode;
+      });
+    } else {
+      setState(() {
+        _autoProtocol = true;
+      });
+    }
   }
 
   Future<void> _initializeApp() async {
@@ -134,21 +175,21 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
     await _requestPermissions();
 
-    // Agora sim pode carregar o resto
     await _loadWeather();
   }
 
   void _onTutorialEvent() {
     print("📢 Evento recebido no YourHomePage: ${tutorialNotifier.value}");
     if (tutorialNotifier.value == "show_add_device") {
-      tutorialNotifier.value = null; // Limpa o evento
+      tutorialNotifier.value = null;
       _showTutorialIfFirstTime();
     }
   }
 
   @override
   void dispose() {
-    tutorialNotifier.removeListener(_onTutorialEvent); // 🔹 Remove o listener
+    _prefsCheckTimer?.cancel();
+    tutorialNotifier.removeListener(_onTutorialEvent);
     WidgetsBinding.instance.removeObserver(this);
     ssidController.dispose();
     passwordController.dispose();
@@ -161,6 +202,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     if (state == AppLifecycleState.resumed) {
       _getWifiSSID();
       _loadDevices();
+      _loadCommMode();
       _updateBluetoothStatus();
     }
   }
@@ -270,21 +312,75 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       if (status.isGranted) {
         final info = NetworkInfo();
         final ssid = await info.getWifiName();
+        final is5g = await WifiUtils.is5GHz();
+
         setState(() {
           _wifiSSID = ssid?.replaceAll('"', '');
           ssidController.text = _wifiSSID ?? "";
-          _wifiError = (ssid == null || ssid.isEmpty) ? "Você não está conectado no Wi-Fi" : null;
+
+          if (ssid == null || ssid.isEmpty) {
+            _wifiError = "not_connected";
+          } else if (is5g) {
+            _wifiError = "warning_5ghz";
+          } else {
+            _wifiError = null;
+          }
         });
       } else {
         setState(() {
-          _wifiError = "Estamos sem permissão para listar seu Wi-Fi";
+          _wifiError = "no_permission";
         });
       }
     } catch (e) {
       setState(() {
         _wifiSSID = null;
-        _wifiError = "Ocorreu um erro ao buscar sua rede Wi-Fi: $e";
+        _wifiError = "error_fetching_wifi";
       });
+    }
+  }
+
+  String _getWifiErrorMessage(String error) {
+    switch (error) {
+      case "not_connected":
+        return "Wi-Fi indisponível";
+      case "warning_5ghz":
+        return "Rede Wi-Fi 5 GHz detectada.";
+      case "no_permission":
+        return "Permissão de localização negada.";
+      case "error_fetching_wifi":
+        return "Erro ao obter informações do Wi-Fi.";
+      default:
+        return "";
+    }
+  }
+
+  String _getWifiErrorLongMessage(String error) {
+    switch (error) {
+      case "not_connected":
+        return "Por favor, conecte-se a uma rede Wi-Fi 2.4 GHz para configurar os dispositivos BARREL.";
+      case "warning_5ghz":
+        return "Dispositivos BARREL funcionam apenas em redes Wi-Fi 2.4 GHz. Clique aqui para alterar sua conexão.";
+      case "no_permission":
+        return "Por favor, conceda permissão de localização para que o aplicativo possa obter o SSID do Wi-Fi.";
+      case "error_fetching_wifi":
+        return "Ocorreu um erro ao tentar obter as informações do Wi-Fi. Tente novamente.";
+      default:
+        return "";
+    }
+  }
+
+  IconData? _getWifiErrorIcon(String error) {
+    switch (error) {
+      case "not_connected":
+        return Icons.wifi_off_rounded;
+      case "warning_5ghz":
+        return FontAwesomeIcons.triangleExclamation;
+      case "no_permission":
+        return FontAwesomeIcons.lock;
+      case "error_fetching_wifi":
+        return FontAwesomeIcons.circleExclamation;
+      default:
+        return null;
     }
   }
 
@@ -318,7 +414,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   }
 
   Future<List<Map<String, dynamic>>> _discoverDevicesReturn({void Function(void Function())? setModalState}) async {
-    print("🔍 Iniciando escaneamento Bluetooth...");
     var state = await FlutterBluePlus.adapterState.first;
     var isOn = state == BluetoothAdapterState.on;
     void updateState(Function fn) {
@@ -479,12 +574,22 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
   Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
     bool ok = false;
+
     try {
+      final encryptedData = encryptData(
+        device.ivKey.split(':')[0],
+        device.ivKey.split(':')[1],
+        newState,
+      );
+      print(newState);
       final uri = Uri.parse('http://${device.ip}:8080/command');
-      final response = await http.post(
-        uri,
-        body: {'state': newState},
-      ).timeout(const Duration(seconds: 5));
+      final response = await http
+          .post(
+            uri,
+            headers: {"Content-Type": "text/plain"},
+            body: encryptedData,
+          )
+          .timeout(const Duration(seconds: 5));
       ok = response.statusCode == 200;
       print("Resposta HTTP: ${response.statusCode} - ${response.body}");
     } catch (e) {
@@ -523,7 +628,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
     if (autoMode) {
       final currentSsid = await _getCurrentSsid();
-      if ("" == currentSsid) {
+      if (currentSsid == device.ssid) {
         ok = await _sendHttpCommand(device, newState, Duration(milliseconds: 500));
       }
       if (!ok) {
@@ -531,7 +636,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         ok = await mqtt.publishMessage(device.id, device.deviceId, newState);
       }
     } else {
-      // MODO LOCAL → HTTP
       ok = await _sendHttpCommand(device, newState, Duration(seconds: 5));
     }
 
@@ -565,15 +669,17 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
-  Future<String?> discoverDeviceIp() async {
+  Future<String?> discoverDeviceIp(String deviceId) async {
+    print(deviceId);
     final client = MDnsClient();
     await client.start();
     final ptr = await client
         .lookup<IPAddressResourceRecord>(
-          ResourceRecordQuery.addressIPv4('barrel.local'),
+          ResourceRecordQuery.addressIPv4('$deviceId.local'),
         )
         .first;
     client.stop();
+    print("Discovered IP: ${ptr.address.address}");
     return ptr.address.address;
   }
 
@@ -642,26 +748,47 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               }
               updateStep("Obtendo informações do dispositivo…");
               await Future.delayed(const Duration(seconds: 5));
-              final ip = await discoverDeviceIp();
+              final ip = await discoverDeviceIp(deviceId);
               print("Dispositivo IP: $ip");
               if (ip == null) {
                 throw "Não foi possível obter o IP do dispositivo. Verifique se ele está conectado ao Wi-Fi.";
               }
 
               String chave_iv = "";
-              // só pega a chave iv se for diferente de trigger
               if (!deviceId.toLowerCase().contains("trigger")) {
-                // faz chamada para ip dispositivo para registrar /get_key_iv
-                final url = 'http://$ip:8080/get_key_iv';
-                final response = await http.get(Uri.parse(url));
-                if (response.statusCode != 200) {
-                  throw "Falha ao registrar o dispositivo: ${response.statusCode}";
+                const maxRetries = 3;
+                int attempt = 0;
+                bool success = false;
+
+                while (attempt < maxRetries && !success) {
+                  try {
+                    final url = 'http://$ip:8080/get_key_iv';
+                    final response = await http.get(Uri.parse(url));
+
+                    if (response.statusCode == 200) {
+                      chave_iv = response.body;
+                      print("Chave e IV: $chave_iv");
+                      success = true;
+                    } else {
+                      attempt++;
+                      if (attempt >= maxRetries) {
+                        throw "Falha ao registrar o dispositivo: ${response.statusCode}";
+                      } else {
+                        await Future.delayed(const Duration(seconds: 1));
+                      }
+                    }
+                  } catch (e) {
+                    attempt++;
+                    if (attempt >= maxRetries) {
+                      throw "Erro ao tentar obter chave IV após $maxRetries tentativas: $e";
+                    } else {
+                      print("Tentativa $attempt falhou, tentando novamente...");
+                      await Future.delayed(const Duration(seconds: 1));
+                    }
+                  }
                 }
-                chave_iv = response.body;
-                print("Chave e IV: $chave_iv");
               }
 
-              //generate random id integer
               final newDevice = Device(
                 id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
                 deviceId: deviceId,
@@ -681,6 +808,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               // Etapa final
               updateStep("Configuração concluída!");
               await Future.delayed(const Duration(seconds: 2));
+
+              passwordController.clear();
 
               //fecha dialog e atualiza lista
               Navigator.of(context).pop(true);
@@ -926,9 +1055,9 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                     width: double.infinity,
                     child: _wifiError != null && _wifiError!.isNotEmpty
                         ? deviceWarning(
-                            "Wi-Fi desativado",
-                            "Ative o Wi-Fi para configurar o dispositivo",
-                            Icons.wifi_off,
+                            _getWifiErrorMessage(_wifiError!),
+                            _getWifiErrorLongMessage(_wifiError!),
+                            _getWifiErrorIcon(_wifiError!) ?? Icons.wifi_off_rounded,
                             onTap: () {
                               AppSettings.openAppSettings(type: AppSettingsType.wifi);
                             },
@@ -1066,6 +1195,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
       },
     ).whenComplete(() {
       _modalSetState = null;
+      passwordController.clear();
       setState(() {
         isAdding = false;
         _scanFuture = null;
@@ -1137,6 +1267,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                         child: AnimatedGradientButton(
                           stateOn: device.state == 'on',
                           icon: getDeviceIcon(device, returnData: true),
+                          autoMode: _autoProtocol,
                         )),
                   ),
                 ),
