@@ -481,17 +481,6 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
-  Future<void> _shareDevice(int deviceId) async {
-    final result = await showDialog(
-      context: context,
-      builder: (_) => ShareDeviceDialog(deviceId: deviceId),
-    );
-
-    if (result == true) {
-      await _loadPendingShares();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
@@ -688,14 +677,6 @@ class _DevicesPageState extends State<DevicesPage> {
                                               onTap: () {
                                                 setState(() => groupSelecionado = group);
                                                 _editGroup();
-                                              },
-                                            ),
-                                            const SizedBox(width: 8),
-                                            _GroupIconButton(
-                                              icon: Icons.ios_share_rounded,
-                                              tooltip: "Compartilhar grupo",
-                                              onTap: () {
-                                                _shareDevice(1);
                                               },
                                             ),
                                           ],

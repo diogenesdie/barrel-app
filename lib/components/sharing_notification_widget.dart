@@ -18,8 +18,7 @@ class SharingNotificationWidget extends StatefulWidget {
   State<SharingNotificationWidget> createState() => _SharingNotificationWidgetState();
 }
 
-class _SharingNotificationWidgetState extends State<SharingNotificationWidget>
-    with SingleTickerProviderStateMixin {
+class _SharingNotificationWidgetState extends State<SharingNotificationWidget> with SingleTickerProviderStateMixin {
   bool isExpanded = false;
   late AnimationController _animationController;
   late Animation<double> _expandAnimation;
@@ -31,10 +30,7 @@ class _SharingNotificationWidgetState extends State<SharingNotificationWidget>
       duration: const Duration(milliseconds: 300),
       vsync: this,
     );
-    _expandAnimation = CurvedAnimation(
-      parent: _animationController,
-      curve: Curves.easeInOut,
-    );
+    _expandAnimation = CurvedAnimation(parent: _animationController, curve: Curves.easeInOut);
   }
 
   @override
@@ -61,21 +57,13 @@ class _SharingNotificationWidgetState extends State<SharingNotificationWidget>
     return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        gradient: LinearGradient(
-          colors: [
-            const Color(0xFFB8860B).withOpacity(0.1),
-            Colors.brown.withOpacity(0.05),
-          ],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        border: Border.all(color: const Color(0xFFB8860B).withOpacity(0.3), width: 1),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFFB8860B).withOpacity(0.15),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 6,
+            offset: const Offset(0, 3),
           ),
         ],
       ),
@@ -91,14 +79,7 @@ class _SharingNotificationWidgetState extends State<SharingNotificationWidget>
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFFB8860B).withOpacity(0.2),
-                          Colors.brown.withOpacity(0.1),
-                        ],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
+                      color: const Color(0xFFB8860B).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Icon(
@@ -172,7 +153,9 @@ class _SharingNotificationWidgetState extends State<SharingNotificationWidget>
               width: double.infinity,
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: const Color(0xFFB8860B).withOpacity(0.3)),
+                  top: BorderSide(
+                    color: const Color(0xFFB8860B).withOpacity(0.25),
+                  ),
                 ),
               ),
               child: Column(
@@ -210,115 +193,166 @@ class _ShareRequestItem extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: const Color(0xFFB8860B).withOpacity(0.2),
+            color: const Color(0xFFB8860B).withOpacity(0.15),
             width: 0.5,
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
-                colors: [
-                  const Color(0xFFB8860B).withOpacity(0.3),
-                  Colors.brown.withOpacity(0.2),
-                ],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-            ),
-            child: Center(
+      child: Column(children: [
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 20,
+              backgroundColor: const Color(0xFFB8860B).withOpacity(0.15),
               child: Text(
-                share.ownerName.isNotEmpty 
-                  ? share.ownerName[0].toUpperCase() 
-                  : '?',
+                share.ownerName.isNotEmpty ? share.ownerName[0].toUpperCase() : '?',
                 style: TextStyle(
                   color: Colors.brown.shade700,
                   fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  share.ownerName,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Colors.brown.shade700,
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    share.ownerName,
+                    style: TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: Colors.brown.shade700,
+                    ),
                   ),
-                ),
-                Text(
-                  'quer compartilhar um ${share.shareTypeText.toLowerCase()} com você',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Colors.brown.shade600,
+                  Text(
+                    'quer compartilhar um ${share.shareTypeText.toLowerCase()} com você',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: Colors.brown.shade600,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
-          Row(
-            children: [
-              _ActionButton(
-                icon: Icons.check,
-                color: Colors.green,
-                onTap: onAccept,
-                tooltip: 'Aceitar',
+                ],
               ),
-              const SizedBox(width: 8),
-              _ActionButton(
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _ActionButton(
                 icon: Icons.close,
+                label: 'Recusar',
                 color: Colors.red,
                 onTap: onReject,
-                tooltip: 'Recusar',
               ),
-            ],
-          ),
-        ],
-      ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _ActionButton(
+                icon: Icons.check,
+                label: 'Aceitar',
+                color: Colors.green,
+                onTap: onAccept,
+              ),
+            ),
+          ],
+        ),
+      ]),
     );
   }
 }
 
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends StatefulWidget {
   final IconData icon;
+  final String label;
   final Color color;
   final VoidCallback onTap;
-  final String tooltip;
 
   const _ActionButton({
     required this.icon,
+    required this.label,
     required this.color,
     required this.onTap,
-    required this.tooltip,
   });
 
   @override
+  State<_ActionButton> createState() => _ActionButtonState();
+}
+
+class _ActionButtonState extends State<_ActionButton> with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+      lowerBound: 0.0,
+      upperBound: 0.1,
+    );
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onTapDown(TapDownDetails details) => _controller.forward();
+  void _onTapUp(TapUpDetails details) => _controller.reverse();
+
+  @override
   Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(20),
+    final scale = 1 - _controller.value;
+
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _controller.reverse,
+      onTap: widget.onTap,
+      child: AnimatedScale(
+        scale: scale,
+        duration: const Duration(milliseconds: 100),
         child: Container(
-          padding: const EdgeInsets.all(8),
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
           decoration: BoxDecoration(
-            color: color.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: color.withOpacity(0.3)),
+            borderRadius: BorderRadius.circular(8),
+            gradient: LinearGradient(
+              colors: [
+                widget.color.withOpacity(0.8),
+                widget.color.withOpacity(0.6),
+              ],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: widget.color.withOpacity(0.3),
+                blurRadius: 6,
+                offset: const Offset(0, 3),
+              ),
+            ],
           ),
-          child: Icon(
-            icon,
-            size: 16,
-            color: color,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                widget.icon,
+                size: 18,
+                color: Colors.white,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                widget.label,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14,
+                ),
+              ),
+            ],
           ),
         ),
       ),

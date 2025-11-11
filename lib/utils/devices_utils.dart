@@ -184,7 +184,6 @@ Map<String, List<dynamic>> deviceTypeIcons = {
     {"icon": FontAwesomeIcons.towerBroadcast, "key": "towerBroadcast"},
     {"icon": FontAwesomeIcons.wifi, "key": "wifi"},
     {"icon": FontAwesomeIcons.signal, "key": "signal"},
-    {"icon": FontAwesomeIcons.radio, "key": "radio"},
   ],
   "unknown": [
     {"icon": Icons.device_unknown, "key": "device_unknown"},

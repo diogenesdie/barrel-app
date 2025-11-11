@@ -162,7 +162,7 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
 
     var rowView: RemoteViews? = null
     for ((index, device) in deviceList.withIndex()) {
-        if (index % 4 == 0) { // A cada 4 dispositivos, cria uma nova linha
+        if (index % 3 == 0) { // A cada 4 dispositivos, cria uma nova linha
             rowView = RemoteViews(context.packageName, R.layout.widget_row)
             views.addView(R.id.widget_container, rowView)
         }

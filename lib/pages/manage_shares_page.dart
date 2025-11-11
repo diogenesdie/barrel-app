@@ -60,151 +60,149 @@ class _ManageSharesState extends State<ManageShares> {
   }
 
   Future<void> _revokeShare(DeviceShare share) async {
-  final confirmar = await showDialog<bool>(
-    context: context,
-    barrierDismissible: false,
-    builder: (ctx) => Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-      elevation: 8,
-      backgroundColor: Colors.white,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(22, 22, 22, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Ícone de alerta
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFB8860B), Color(0xFF5D4037)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+    final confirmar = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        elevation: 12,
+        backgroundColor: Colors.white,
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(18),
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [Colors.red.shade400, Colors.red.shade600],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.red.withOpacity(0.3),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.link_off_rounded,
+                  color: Colors.white,
+                  size: 32,
                 ),
               ),
-              child: const Icon(
-                Icons.link_off_rounded,
-                color: Colors.white,
-                size: 28,
-              ),
-            ),
-            const SizedBox(height: 18),
+              const SizedBox(height: 24),
 
-            // Título
-            const Text(
-              'Revogar acesso?',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 19,
-                fontWeight: FontWeight.w700,
-                color: Color(0xFF3E2723),
-                letterSpacing: 0.2,
+              const Text(
+                'Revogar acesso?',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF3E2723),
+                ),
               ),
-            ),
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // Texto de confirmação
-            Text(
-              'Você está prestes a remover o acesso de "${share.sharedWithName}". '
-              'Essa pessoa perderá o controle do ${share.type?.toLowerCase()}.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14.5,
-                height: 1.5,
-                color: Colors.brown.shade700,
+              Text(
+                'Você está prestes a remover o acesso de "${share.sharedWithName}". '
+                'Essa pessoa perderá o controle do ${share.type?.toLowerCase()}.',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 15,
+                  height: 1.6,
+                  color: Colors.grey.shade700,
+                ),
               ),
-            ),
-            const SizedBox(height: 22),
+              const SizedBox(height: 28),
 
-            // Botões de ação
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        side: BorderSide(
+                          color: Colors.grey.shade400,
+                          width: 1.5,
+                        ),
                       ),
-                      side: BorderSide(
-                        color: Colors.brown.shade400.withOpacity(0.5),
-                        width: 1.3,
-                      ),
-                    ),
-                    onPressed: () => Navigator.pop(ctx, false),
-                    child: Text(
-                      'Cancelar',
-                      style: TextStyle(
-                        color: Colors.brown.shade700,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.2,
+                      onPressed: () => Navigator.pop(ctx, false),
+                      child: Text(
+                        'Cancelar',
+                        style: TextStyle(
+                          color: Colors.grey.shade700,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(vertical: 12),
-                      backgroundColor: Colors.redAccent,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        backgroundColor: Colors.red,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
                       ),
-                      shadowColor: Colors.redAccent.withOpacity(0.3),
-                      elevation: 4,
-                    ),
-                    onPressed: () => Navigator.pop(ctx, true),
-                    child: const Text(
-                      'Revogar',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 0.3,
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text(
+                        'Revogar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
 
-  if (confirmar == true) {
-    try {
-      await _shareRepo.revokeShare(share.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text("Compartilhamento revogado com sucesso"),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
-      await _loadMyShares();
-    } catch (e) {
-      debugPrint("Erro ao revogar compartilhamento: $e");
-      if (mounted) {
+    if (confirmar == true) {
+      try {
+        await _shareRepo.revokeShare(share.id);
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text("Erro ao revogar compartilhamento"),
-            backgroundColor: Colors.red,
+            content: Text("Compartilhamento revogado com sucesso"),
+            backgroundColor: Colors.green,
             behavior: SnackBarBehavior.floating,
           ),
         );
+        await _loadMyShares();
+      } catch (e) {
+        debugPrint("Erro ao revogar compartilhamento: $e");
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("Erro ao revogar compartilhamento"),
+              backgroundColor: Colors.red,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
       }
     }
   }
-}
 
-
-  // Badge de status (pendente / ativo / etc)
   Widget _statusChip(DeviceShare share) {
-    // Ajusta as cores de acordo com o status
     Color bg;
     Color fg;
     String label;
@@ -232,17 +230,17 @@ class _ManageSharesState extends State<ManageShares> {
     }
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: bg,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(12),
       ),
       child: Text(
         label,
         style: TextStyle(
-          fontSize: 11,
+          fontSize: 12,
           color: fg,
-          fontWeight: FontWeight.w600,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -251,142 +249,178 @@ class _ManageSharesState extends State<ManageShares> {
   Widget _shareCard(DeviceShare share) {
     final isRevoked = share.status == 'R';
 
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 250),
-      curve: Curves.easeOutCubic,
+    return Container(
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
+        gradient: LinearGradient(
+          colors: [
+            Colors.white,
+            Colors.grey.shade50,
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(24),
         border: Border.all(
-          color: const Color(0xFFB8860B).withOpacity(0.2),
+          color: Colors.grey.shade200,
           width: 1,
         ),
         boxShadow: [
           BoxShadow(
-            color: Colors.brown.withOpacity(0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 5),
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 16,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Avatar circular
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                gradient: LinearGradient(
-                  colors: [
-                    const Color(0xFFB8860B).withOpacity(0.25),
-                    const Color(0xFF5D4037).withOpacity(0.2),
-                  ],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Center(
-                child: Text(
-                  share.sharedWithName?.isNotEmpty == true ? share.sharedWithName![0].toUpperCase() : '?',
-                  style: TextStyle(
-                    color: Colors.brown.shade700,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 18,
-                    letterSpacing: 0.4,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(width: 14),
-
-            // Conteúdo principal
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Nome + status chip
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Text(
-                          share.sharedWithName ?? 'Usuário desconhecido',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w700,
-                            color: Colors.brown.shade800,
-                            fontSize: 16,
-                            letterSpacing: 0.2,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+      child: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: Row(
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFB8860B),
+                        const Color(0xFF5D4037),
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFFB8860B).withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
                       ),
-                      const SizedBox(width: 6),
-                      _statusChip(share),
                     ],
                   ),
-
-                  const SizedBox(height: 6),
-
-                  // Texto de descrição
-                  Text(
-                    'Você compartilhou um ${share.shareTypeText.toLowerCase()}',
-                    style: TextStyle(
-                      fontSize: 13.5,
-                      color: Colors.brown.shade600,
-                      height: 1.4,
+                  child: Center(
+                    child: Text(
+                      share.sharedWithName?.isNotEmpty == true
+                          ? share.sharedWithName![0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                      ),
                     ),
                   ),
-
-                  if (share.sharedItemName != null && share.sharedItemName!.trim().isNotEmpty)
-                    Padding(
-                        padding: const EdgeInsets.only(top: 2),
-                        child: Row(
-                          children: [
-                            Icon(
-                              share.type == 'device' ? Icons.devices : FontAwesomeIcons.layerGroup,
-                              size: 14,
-                              color: Colors.brown.shade400,
-                            ),
-                            const SizedBox(width: 6),
-                            Expanded(
-                              child: Text(
-                                share.sharedItemName!,
-                                style: TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w500,
-                                  color: Colors.grey.shade800,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ],
-                        )),
-
-                  const SizedBox(height: 12),
-
-                  // Ações
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _RevokeButton(
-                        enabled: !isRevoked,
-                        onTap: () => _revokeShare(share),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              share.sharedWithName ?? 'Usuário desconhecido',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: Colors.brown.shade900,
+                                fontSize: 17,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          _statusChip(share),
+                        ],
                       ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Compartilhou um ${share.shareTypeText.toLowerCase()}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      if (share.sharedItemName != null && share.sharedItemName!.trim().isNotEmpty)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Row(
+                            children: [
+                              Icon(
+                                share.type == 'device' ? Icons.devices_rounded : FontAwesomeIcons.layerGroup,
+                                size: 15,
+                                color: const Color(0xFFB8860B),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  share.sharedItemName!,
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.grey.shade800,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: const BorderRadius.only(
+                bottomLeft: Radius.circular(24),
+                bottomRight: Radius.circular(24),
+              ),
+            ),
+            child: ElevatedButton(
+              onPressed: isRevoked ? null : () => _revokeShare(share),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: isRevoked ? Colors.grey.shade300 : Colors.red,
+                foregroundColor: Colors.white,
+                disabledBackgroundColor: Colors.grey.shade300,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: isRevoked ? 0 : 4,
+                shadowColor: Colors.red.withOpacity(0.3),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    Icons.link_off_rounded,
+                    size: 20,
+                    color: isRevoked ? Colors.grey.shade500 : Colors.white,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    isRevoked ? 'Acesso revogado' : 'Revogar acesso',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.bold,
+                      color: isRevoked ? Colors.grey.shade500 : Colors.white,
+                    ),
                   ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -432,7 +466,7 @@ class _ManageSharesState extends State<ManageShares> {
                   : _myShares.isEmpty
                       ? _EmptyState(onRefresh: _loadMyShares)
                       : ListView.builder(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 32),
+                          padding: const EdgeInsets.fromLTRB(16, 20, 16, 32),
                           itemCount: _myShares.length,
                           itemBuilder: (context, index) {
                             final share = _myShares[index];
@@ -440,55 +474,6 @@ class _ManageSharesState extends State<ManageShares> {
                           },
                         ),
             ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RevokeButton extends StatelessWidget {
-  final bool enabled;
-  final VoidCallback onTap;
-
-  const _RevokeButton({
-    required this.enabled,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final baseColor = enabled ? Colors.redAccent : Colors.grey;
-
-    return Tooltip(
-      message: enabled ? 'Revogar acesso' : 'Acesso já revogado',
-      child: InkWell(
-        onTap: enabled ? onTap : null,
-        borderRadius: BorderRadius.circular(20),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(
-            color: baseColor.withOpacity(0.08),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: baseColor.withOpacity(0.4)),
-          ),
-          child: Row(
-            children: [
-              Icon(
-                Icons.link_off_rounded,
-                size: 16,
-                color: baseColor,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'Revogar',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: baseColor,
-                ),
-              ),
-            ],
           ),
         ),
       ),
@@ -512,51 +497,62 @@ class _EmptyState extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding: const EdgeInsets.all(28),
+                  padding: const EdgeInsets.all(32),
                   decoration: BoxDecoration(
-                    color: Colors.grey[100],
+                    gradient: LinearGradient(
+                      colors: [
+                        const Color(0xFFB8860B).withOpacity(0.1),
+                        const Color(0xFF5D4037).withOpacity(0.1),
+                      ],
+                    ),
                     shape: BoxShape.circle,
                     boxShadow: [
                       BoxShadow(
                         color: Colors.black.withOpacity(0.05),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4),
+                        blurRadius: 20,
+                        offset: const Offset(0, 8),
                       ),
                     ],
                   ),
                   child: Icon(
                     FontAwesomeIcons.shareNodes,
-                    color: Colors.black54,
-                    size: 60,
+                    color: const Color(0xFFB8860B),
+                    size: 64,
                   ),
                 ),
-                const SizedBox(height: 30),
+                const SizedBox(height: 32),
                 const Text(
                   "Nenhum compartilhamento ativo",
                   style: TextStyle(
-                    fontSize: 22,
+                    fontSize: 24,
                     fontWeight: FontWeight.bold,
                     color: Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
+                const SizedBox(height: 12),
+                Text(
                   "Quando você compartilhar um dispositivo ou grupo, ele aparecerá aqui.\nVocê pode revogar o acesso a qualquer momento.",
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    color: Colors.black54,
-                    fontSize: 14,
-                    height: 1.4,
+                    color: Colors.grey.shade600,
+                    fontSize: 15,
+                    height: 1.5,
                   ),
                 ),
-                const SizedBox(height: 36),
-                GradientButton(
-                  onPressed: () => onRefresh(),
-                  child: const Text(
-                    "Atualizar lista",
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                const SizedBox(height: 40),
+                SizedBox(
+                  width: double.infinity,
+                  child: GradientButton(
+                    onPressed: () => onRefresh(),
+                    child: const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 4),
+                      child: Text(
+                        "Atualizar lista",
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
                     ),
                   ),
                 ),
