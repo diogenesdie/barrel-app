@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:multicast_dns/multicast_dns.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/core/constants.dart';
@@ -28,56 +27,6 @@ class SearchDevicesPageState extends State<SearchDevicesPage> {
   @override
   void dispose() {
     super.dispose();
-  }
-
-  Future<void> discoverDevicesMDNS() async {
-    setState(() {
-      isScanning = true;
-    });
-
-    final MDnsClient client = MDnsClient();
-    await client.start();
-
-    try {
-      await for (PtrResourceRecord ptr in client.lookup<PtrResourceRecord>(
-        ResourceRecordQuery.serverPointer('_http._tcp.local'),
-      )) {
-        await for (SrvResourceRecord srv in client.lookup<SrvResourceRecord>(
-          ResourceRecordQuery.service(ptr.domainName),
-        )) {
-          String ipAddress = "Desconhecido";
-          String friendlyName = "Desconhecido";
-          bool isAdded = false;
-
-          await for (IPAddressResourceRecord ip in client.lookup<IPAddressResourceRecord>(
-            ResourceRecordQuery.addressIPv4(srv.target),
-          )) {
-            ipAddress = ip.address.address;
-          }
-
-          await for (TxtResourceRecord txt in client.lookup<TxtResourceRecord>(
-            ResourceRecordQuery.text(ptr.domainName),
-          )) {
-            for (var entry in txt.text.split("\n")) {
-              if (entry.startsWith("name=")) {
-                friendlyName = entry.substring(5);
-              }
-            }
-          }
-
-          final deviceInfo = {"name": friendlyName, "ip": ipAddress, "port": srv.port.toString(), "isAdded": isAdded.toString()};
-
-          print(deviceInfo);
-        }
-      }
-    } catch (e) {
-      print("Erro ao buscar dispositivos: $e");
-    } finally {
-      client.stop();
-      setState(() {
-        isScanning = false;
-      });
-    }
   }
 
   String _getType(String ssid) {

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:smart_home/models/device_action_repository.dart';
+import 'package:smart_home/models/device_button_repository.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/pages/checking_session_page.dart';
@@ -28,6 +29,7 @@ void main() async {
 
   WidgetsFlutterBinding.ensureInitialized();
   await DeviceActionRepository.initHive();
+  await DeviceButtonRepository.initHive();
   await DeviceRepository.initHive();
   await GroupRepository.initHive();
 

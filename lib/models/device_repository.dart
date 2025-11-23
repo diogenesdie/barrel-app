@@ -82,9 +82,6 @@ class DeviceRepository {
     final idStr = device.id.toString();
     final index = devicesList.indexWhere((d) => d['id'].toString() == idStr);
 
-    print("Device ${device.name} isFavorite: ${device.isFavorite}");
-    print("Favorites list before update: $devicesList");
-
     if (device.isFavorite) {
       if (index == -1) {
         devicesList.add(device.toJsonWithId());
@@ -149,9 +146,6 @@ class DeviceRepository {
         deviceJson.remove('device_id');
       }
 
-      print("Sincronizando dispositivo via $method para $url");
-      print("Dados do dispositivo: $deviceJson");
-
       final response = await (method == 'POST'
           ? http.post(
               Uri.parse(url),
@@ -170,10 +164,9 @@ class DeviceRepository {
               body: jsonEncode(deviceJson),
             ));
 
-            print("Resposta da API: ${response.statusCode} - ${response.body}");
-
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final decoded = jsonDecode(response.body);
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final decoded = jsonDecode(decodedBody);
         final updatedDevice = Device.fromJson(decoded['data']);
         if (updatedDevice.id != device.id) {
           await _box.delete(device.id);

@@ -576,7 +576,6 @@ class _DevicesPageState extends State<DevicesPage> {
                                   key: group.id == sortedGroups.first.id ? _firstGroupKey : null,
                                   onWillAccept: (data) => data != null && data.groupId != group.id,
                                   onAccept: (device) async {
-                                    print("Dispositivo ${device.name} movido para o grupo ${group.name}");
                                     setState(() {
                                       device.groupId = group.id;
                                     });
@@ -1019,12 +1018,11 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
 
     _selectedGroupId = widget.device.groupId;
 
-    // 👇 Carregar actions existentes
     if (widget.device.actions != null) {
       for (var action in widget.device.actions!) {
         _triggerActions[action.triggerEvent] = {
           'deviceId': action.targetDeviceId,
-          'deviceName': '', // será preenchido ao carregar devices
+          'deviceName': '',
           'action': action.actionType,
         };
       }

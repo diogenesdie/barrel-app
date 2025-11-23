@@ -19,6 +19,7 @@ import 'package:smart_home/models/device.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group.dart';
 import 'package:smart_home/models/group_repository.dart';
+import 'package:smart_home/pages/device_buttons_page.dart';
 import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/crypto_utils.dart';
 import 'package:smart_home/utils/devices_utils.dart';
@@ -179,7 +180,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   }
 
   void _onTutorialEvent() {
-    print("📢 Evento recebido no YourHomePage: ${tutorialNotifier.value}");
     if (tutorialNotifier.value == "show_add_device") {
       tutorialNotifier.value = null;
       _showTutorialIfFirstTime();
@@ -523,8 +523,10 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
       mqtt.listen((topic, payload) async {
         final parts = payload.split(',');
-        if (parts.length == 2) {
+        if (parts.length >= 2) {
           final newState = parts[0];
+          if (newState != "on" && newState != "off" && newState != "ready" && newState != "reading") return;
+
           final newIp = parts[1];
           final deviceId = topic.split('/').elementAt(2);
           setState(() {
@@ -581,7 +583,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         device.ivKey.split(':')[1],
         newState,
       );
-      print(newState);
       final uri = Uri.parse('http://${device.ip}:8080/command');
       final response = await http
           .post(
@@ -591,7 +592,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
           )
           .timeout(const Duration(seconds: 5));
       ok = response.statusCode == 200;
-      print("Resposta HTTP: ${response.statusCode} - ${response.body}");
     } catch (e) {
       ok = false;
       print("Erro ao enviar comando HTTP local: $e");
@@ -670,7 +670,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   }
 
   Future<String?> discoverDeviceIp(String deviceId) async {
-    print(deviceId);
     final client = MDnsClient();
     await client.start();
     final ptr = await client
@@ -679,7 +678,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
         )
         .first;
     client.stop();
-    print("Discovered IP: ${ptr.address.address}");
     return ptr.address.address;
   }
 
@@ -1261,6 +1259,14 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                     color: Colors.transparent,
                     child: InkWell(
                         onTap: () {
+                          if (device.type.toLowerCase() == 'ir') {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (context) => DeviceButtonsPage(device: device),
+                              ),
+                            );
+                            return;
+                          }
                           _toggleDevice(device);
                         },
                         borderRadius: BorderRadius.circular(10),

@@ -34,8 +34,7 @@ class GroupRepository {
   }
 
   List<Group> getGroups() {
-    return _box.values.toList()
-      ..sort((a, b) => a.position.compareTo(b.position));
+    return _box.values.toList()..sort((a, b) => a.position.compareTo(b.position));
   }
 
   Future<void> removeGroup(int id) async {
@@ -106,7 +105,8 @@ class GroupRepository {
             ));
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        final decoded = jsonDecode(response.body);
+        final decodedBody = utf8.decode(response.bodyBytes);
+        final decoded = jsonDecode(decodedBody);
         final updatedGroup = Group.fromJson(decoded['data']);
         if (updatedGroup.id != group.id) {
           await _box.delete(group.id);

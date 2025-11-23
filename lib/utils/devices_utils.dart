@@ -20,6 +20,8 @@ String getDeviceType(String id) {
     return "rf";
   } else if (id.contains("FEEDER")) {
     return "feeder";
+  } else if (id.contains("IR")) {
+    return "ir";
   }
 
   return "unknown";
@@ -38,6 +40,8 @@ String getDeviceName(String id) {
     return "Barrel RF Controller";
   } else if (id.contains("FEEDER")) {
     return "Barrel Feeder";
+  } else if (id.contains("IR")) {
+    return "Barrel IR Controller";
   }
 
   return "Unknown";
@@ -57,6 +61,8 @@ String getDefaultIconNameByType(String type) {
       return "towerBroadcast";
     case "feeder":
       return "bowlFood";
+    case "ir":
+      return "forward";
     default:
       return "device_unknown";
   }
@@ -99,6 +105,8 @@ dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnDa
       return returnData ? FontAwesomeIcons.towerBroadcast : Icon(FontAwesomeIcons.towerBroadcast, color: color);
     case "feeder":
       return returnData ? FontAwesomeIcons.bowlFood : Icon(FontAwesomeIcons.bowlFood, color: color);
+    case "ir":
+      return returnData ? FontAwesomeIcons.forward : Icon(FontAwesomeIcons.forward, color: color);
     default:
       return returnData ? Icons.device_unknown : Icon(Icons.device_unknown, color: color);
   }
@@ -146,6 +154,8 @@ String getDeviceSubtitle(String type) {
       return 'Tomada Inteligente';
     case "trigger":
       return 'Interruptor Inteligente';
+    case "ir":
+      return 'Controle Universal Inteligente';
     default:
       return 'Dispositivo Desconhecido';
   }
@@ -185,6 +195,12 @@ Map<String, List<dynamic>> deviceTypeIcons = {
     {"icon": FontAwesomeIcons.wifi, "key": "wifi"},
     {"icon": FontAwesomeIcons.signal, "key": "signal"},
   ],
+  "ir": [
+    {"icon": FontAwesomeIcons.forward, "key": "forward"},
+    {"icon": FontAwesomeIcons.tv, "key": "tv"},
+    {"icon": FontAwesomeIcons.fan, "key": "fan"},
+    {"icon": FontAwesomeIcons.snowflake, "key": "snowflake"},
+  ],
   "unknown": [
     {"icon": Icons.device_unknown, "key": "device_unknown"},
     {"icon": Icons.question_mark, "key": "question_mark"},
@@ -212,7 +228,6 @@ Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) 
       body: {'state': newState},
     ).timeout(const Duration(seconds: 5));
     ok = response.statusCode == 200;
-    print("Resposta HTTP: ${response.statusCode} - ${response.body}");
   } catch (e) {
     ok = false;
     print("Erro ao enviar comando HTTP local: $e");
@@ -269,7 +284,7 @@ String getActionCommand(String action) {
     case 'liberar':
       return 'release';
     default:
-      return '';
+      return action.toLowerCase();
   }
 }
 
@@ -289,3 +304,24 @@ String? getActionDisplayName(String command) {
       return null;
   }
 }
+
+final Map<String, IconData> buttonsIcons = {
+  "power": FontAwesomeIcons.powerOff,
+  "tv": FontAwesomeIcons.tv,
+  "volume_up": FontAwesomeIcons.volumeHigh,
+  "volume_down": FontAwesomeIcons.volumeLow,
+  "play": FontAwesomeIcons.play,
+  "pause": FontAwesomeIcons.pause,
+  "forward": FontAwesomeIcons.forward,
+  "back": FontAwesomeIcons.backward,
+  "light": FontAwesomeIcons.lightbulb,
+  "fan": FontAwesomeIcons.fan,
+  "snow": FontAwesomeIcons.snowflake,
+  "wifi": FontAwesomeIcons.wifi,
+  "bolt": FontAwesomeIcons.bolt,
+  "bars": FontAwesomeIcons.bars,
+  "circle": Icons.circle,
+  "stop": FontAwesomeIcons.stop,
+  "x": FontAwesomeIcons.xmark,
+  "empty": Icons.block,
+};
