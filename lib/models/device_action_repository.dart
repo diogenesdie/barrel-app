@@ -18,4 +18,8 @@ class DeviceActionRepository {
   Future<DeviceAction?> getDeviceById(int id) async {
     return _box.get(id);
   }
+
+  Future<void> clearAll() async {
+    await _box.clear();
+  }
 }

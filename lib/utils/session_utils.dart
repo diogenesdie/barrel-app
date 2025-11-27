@@ -2,6 +2,9 @@ import 'dart:convert';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/models/device_action_repository.dart';
+import 'package:smart_home/models/device_repository.dart';
+import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/utils/widget_utils.dart';
 import 'package:http/http.dart' as http;
 
@@ -90,6 +93,15 @@ class SessionUtils {
     await prefs.remove('latitude');
     await prefs.remove('longitude');
     await prefs.remove('devices');
+
+    DeviceRepository deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
+    GroupRepository groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
+    DeviceActionRepository deviceActionRepo = DeviceActionRepository(apiBaseUrl: BASE_API_URL);
+
+    await deviceRepo.clearAll();
+    await groupRepo.clearAll();
+    await deviceActionRepo.clearAll();
+
     updateWidget();
 
     await _storage.deleteAll();

@@ -463,14 +463,19 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     List<ScanResult> results = await FlutterBluePlus.scanResults.first;
 
     for (ScanResult result in results) {
-      if (result.device.platformName.contains("BARREL")) {
-        final type = getDeviceType(result.device.platformName);
-        final name = getDeviceName(result.device.platformName);
+      var rawName = result.device.platformName;
+      if (rawName.isEmpty) {
+        rawName = result.device.advName;
+      }
+
+      if (rawName.contains("BARREL")) {
+        final type = getDeviceType(rawName);
+        final displayName = getDeviceName(rawName);
         final ip = result.device.remoteId.toString();
         final port = result.advertisementData.txPowerLevel.toString();
         final isAdded = false;
 
-        final deviceInfo = {"id": result.device.platformName, "type": type, "name": name, "ip": ip, "port": port, "isAdded": isAdded.toString(), "device": result.device};
+        final deviceInfo = {"id": rawName, "type": type, "name": displayName, "ip": ip, "port": port, "isAdded": isAdded.toString(), "device": result.device};
 
         if (!foundDevices.any((d) => d["ip"] == ip)) {
           foundDevices.add(deviceInfo);
@@ -747,7 +752,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               updateStep("Obtendo informações do dispositivo…");
               await Future.delayed(const Duration(seconds: 5));
               final ip = await discoverDeviceIp(deviceId);
-              print("Dispositivo IP: $ip");
               if (ip == null) {
                 throw "Não foi possível obter o IP do dispositivo. Verifique se ele está conectado ao Wi-Fi.";
               }
@@ -765,7 +769,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
                     if (response.statusCode == 200) {
                       chave_iv = response.body;
-                      print("Chave e IV: $chave_iv");
                       success = true;
                     } else {
                       attempt++;

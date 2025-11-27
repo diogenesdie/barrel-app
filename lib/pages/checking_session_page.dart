@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
@@ -10,6 +11,8 @@ class CheckingSessionPage extends StatefulWidget {
 }
 
 class _CheckingSessionPageState extends State<CheckingSessionPage> {
+  bool _showRetryButton = false;
+
   @override
   void initState() {
     super.initState();
@@ -37,10 +40,33 @@ class _CheckingSessionPageState extends State<CheckingSessionPage> {
         Navigator.of(context).pushReplacementNamed('/home');
         return;
       }
-
-      Navigator.of(context).pushReplacementNamed('/auth');
+       
+      // Mostra botão para tentar novamente a biometria
+      setState(() {
+        _showRetryButton = true;
+      });
     } else {
       Navigator.of(context).pushReplacementNamed('/auth');
+    }
+  }
+
+  Future<void> _retryBiometric() async {
+    setState(() {
+      _showRetryButton = false;
+    });
+    
+    final ok = await BiometricUtils.authenticate('login',
+      reason: "Autentique-se para acessar o aplicativo",
+    );
+    
+    if (!mounted) return;
+    
+    if (ok) {
+      Navigator.of(context).pushReplacementNamed('/home');
+    } else {
+      setState(() {
+        _showRetryButton = true;
+      });
     }
   }
 
@@ -56,10 +82,13 @@ class _CheckingSessionPageState extends State<CheckingSessionPage> {
     return Scaffold(
       backgroundColor: Colors.white, // FUNDO BRANCO
       body: SafeArea(
-        child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+        child: Column(
+          children: [
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
               // Logo
               Image.asset(
                 'assets/logo.png',
@@ -121,18 +150,41 @@ class _CheckingSessionPageState extends State<CheckingSessionPage> {
               const SizedBox(height: 28),
 
               // Loader na cor primária (sem gradient), limpo sobre fundo branco
-              SizedBox(
-                width: 22,
-                height: 22,
-                child: CircularProgressIndicator(
-                  strokeWidth: 2.5,
-                  valueColor: AlwaysStoppedAnimation(
-                    Theme.of(context).colorScheme.primary,
+              if (!_showRetryButton)
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2.5,
+                    valueColor: AlwaysStoppedAnimation(
+                      Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Botão para tentar novamente a biometria (fixo na parte inferior)
+            if (_showRetryButton)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: GradientButton(
+                    onPressed: _retryBiometric,
+                    child: const Text(
+                      'Usar senha do celular',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
       ),
     );

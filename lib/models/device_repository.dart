@@ -225,4 +225,8 @@ class DeviceRepository {
       throw Exception("Erro na sincronização: $e");
     }
   }
+
+  Future<void> clearAll() async {
+    await _box.clear();
+  }
 }

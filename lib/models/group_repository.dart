@@ -25,6 +25,18 @@ class GroupRepository {
     }
   }
 
+  Future<void> createDefaultGroup() async {
+    final defaultGroup = Group(
+      id: 1,
+      name: 'Casa',
+      icon: 'home',
+      position: 0,
+      isDefault: true,
+    );
+    await addGroup(defaultGroup, false);
+    print('Grupo padrão criado: ${defaultGroup.name}');
+  }
+
   Future<Group?> getDefaultGroup() async {
     try {
       return _box.values.firstWhere((group) => group.isDefault == true);
@@ -154,5 +166,9 @@ class GroupRepository {
     } catch (e) {
       throw Exception("Erro na sincronização: $e");
     }
+  }
+
+  Future<void> clearAll() async {
+    await _box.clear();
   }
 }

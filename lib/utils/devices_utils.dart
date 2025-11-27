@@ -6,6 +6,7 @@ import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device.dart';
 import 'package:http/http.dart' as http;
 import 'package:smart_home/services/mqtt_service.dart';
+import 'package:smart_home/utils/crypto_utils.dart';
 
 String getDeviceType(String id) {
   if (id.contains("PLUG")) {
@@ -222,11 +223,18 @@ Future<String?> _getCurrentSsid() async {
 Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
   bool ok = false;
   try {
+    final encryptedData = encryptData(
+      device.ivKey.split(':')[0],
+      device.ivKey.split(':')[1],
+      newState,
+    );
     final uri = Uri.parse('http://${device.ip}:8080/command');
-    final response = await http.post(
-      uri,
-      body: {'state': newState},
-    ).timeout(const Duration(seconds: 5));
+    final response = await http
+        .post(
+          uri,
+          body: encryptedData,
+        )
+        .timeout(const Duration(seconds: 5));
     ok = response.statusCode == 200;
   } catch (e) {
     ok = false;
@@ -243,16 +251,20 @@ Future<bool> resetDevice(Device device, BuildContext context, bool mounted) asyn
   bool ok = false;
 
   if (autoMode) {
+    print("Tentando resetar via HTTP local...");
     final currentSsid = await _getCurrentSsid();
     if (device.ssid == currentSsid) {
       ok = await _sendHttpCommand(device, "clear", const Duration(seconds: 5));
     }
     if (!ok) {
+      print("Tentando resetar via MQTT...");
       final mqtt = MqttService();
       ok = await mqtt.publishMessage(device.id, device.deviceId, "clear");
     }
   } else {
+    print("Tentando resetar via HTTP local (modo manual)...");
     ok = await _sendHttpCommand(device, "clear", const Duration(seconds: 5));
+    print(ok ? "Reset via HTTP local bem-sucedido." : "Falha no reset via HTTP local.");
   }
 
   return ok;

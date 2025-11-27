@@ -601,7 +601,12 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
         SizedBox(
           width: double.infinity,
           child: TextButton(
-            onPressed: _loading ? null : _goHome,
+            onPressed: _loading ? null : () {
+              // Criar grupo padrao
+              GroupRepository groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
+              groupRepo.createDefaultGroup();
+              _goHome();
+            },
             child: const Text('Continuar sem cadastro'),
           ),
         ),

@@ -904,6 +904,7 @@ class _DeviceCard extends StatelessWidget {
                   favoriteKey: favoriteKey,
                   selected: device.isFavorite,
                   onTap: onFavorite,
+                  disabled: device.type == 'ir',
                 ),
               ],
             ),
@@ -952,8 +953,9 @@ class _GradientStarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
   final GlobalKey? favoriteKey;
+  final bool disabled;
 
-  const _GradientStarButton({required this.selected, required this.onTap, this.favoriteKey});
+  const _GradientStarButton({required this.selected, required this.onTap, this.favoriteKey, this.disabled = false});
 
   @override
   Widget build(BuildContext context) {
@@ -964,7 +966,15 @@ class _GradientStarButton extends StatelessWidget {
       key: favoriteKey,
       color: Colors.transparent,
       child: InkResponse(
-        onTap: onTap,
+        onTap: disabled ? () {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("A opção de favorito ainda não está disponível para este tipo de dispositivo."),
+              backgroundColor: Colors.orange,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        } : onTap,
         radius: 24,
         child: Container(
           padding: const EdgeInsets.all(8),
