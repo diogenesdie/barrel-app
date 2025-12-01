@@ -23,6 +23,8 @@ String getDeviceType(String id) {
     return "feeder";
   } else if (id.contains("IR")) {
     return "ir";
+  } else if (id.contains("CONTACT")) {
+    return "contact";
   }
 
   return "unknown";
@@ -43,6 +45,8 @@ String getDeviceName(String id) {
     return "Barrel Feeder";
   } else if (id.contains("IR")) {
     return "Barrel IR Controller";
+  } else if (id.contains("CONTACT")) {
+    return "Barrel Contact Sensor";
   }
 
   return "Unknown";
@@ -64,6 +68,8 @@ String getDefaultIconNameByType(String type) {
       return "bowlFood";
     case "ir":
       return "forward";
+    case "contact":
+      return "doorOpen";
     default:
       return "device_unknown";
   }
@@ -108,6 +114,8 @@ dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnDa
       return returnData ? FontAwesomeIcons.bowlFood : Icon(FontAwesomeIcons.bowlFood, color: color);
     case "ir":
       return returnData ? FontAwesomeIcons.forward : Icon(FontAwesomeIcons.forward, color: color);
+    case "contact":
+      return returnData ? FontAwesomeIcons.doorOpen : Icon(FontAwesomeIcons.doorOpen, color: color);
     default:
       return returnData ? Icons.device_unknown : Icon(Icons.device_unknown, color: color);
   }
@@ -157,6 +165,8 @@ String getDeviceSubtitle(String type) {
       return 'Interruptor Inteligente';
     case "ir":
       return 'Controle Universal Inteligente';
+    case "contact":
+      return 'Sensor de Contato Inteligente';
     default:
       return 'Dispositivo Desconhecido';
   }
@@ -201,6 +211,11 @@ Map<String, List<dynamic>> deviceTypeIcons = {
     {"icon": FontAwesomeIcons.tv, "key": "tv"},
     {"icon": FontAwesomeIcons.fan, "key": "fan"},
     {"icon": FontAwesomeIcons.snowflake, "key": "snowflake"},
+  ],
+  "contact": [
+    {"icon": FontAwesomeIcons.doorOpen, "key": "doorOpen"},
+    {"icon": FontAwesomeIcons.doorClosed, "key": "doorClosed"},
+    {"icon": FontAwesomeIcons.houseChimney, "key": "houseChimney"},
   ],
   "unknown": [
     {"icon": Icons.device_unknown, "key": "device_unknown"},
@@ -279,7 +294,7 @@ List<String> getActionsForType(String type) {
     case 'feeder':
       return ['Liberar'];
     default:
-      return ['Sem ações disponíveis'];
+      return ['Ligar', 'Desligar', 'Alternar', 'Pulsar', 'Liberar'];
   }
 }
 

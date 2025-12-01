@@ -566,7 +566,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
   }
 
   Widget _statusDevice(Device device) {
-    if (device.type == "trigger") {
+    if (device.type == "trigger" || device.type == "contact") {
       return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Disparado" : "Clique para disparar");
     } else if (device.type == "rf") {
       return SequentialTextSwitcher(text: device.state.toUpperCase() == "ON" ? "Enviando Sinal" : "Clique para enviar sinal");
@@ -613,11 +613,11 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
   Future<void> _toggleDevice(Device device) async {
     final prefs = await SharedPreferences.getInstance();
-    final autoMode = (prefs.getBool(COMM_KEY) ?? true) || device.type == "trigger";
+    final autoMode = (prefs.getBool(COMM_KEY) ?? true) || device.type == "trigger" || device.type == "contact";
 
     String newState = device.state == "on" ? "off" : "on";
 
-    if (device.type == "trigger") {
+    if (device.type == "trigger" || device.type == "contact") {
       if (newState == "on") {
         newState = "trigger";
       } else {
@@ -757,7 +757,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
               }
 
               String chave_iv = "";
-              if (!deviceId.toLowerCase().contains("trigger")) {
+              if (!deviceId.toLowerCase().contains("trigger") && !deviceId.toLowerCase().contains("contact")) {
                 const maxRetries = 3;
                 int attempt = 0;
                 bool success = false;

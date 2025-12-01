@@ -966,15 +966,17 @@ class _GradientStarButton extends StatelessWidget {
       key: favoriteKey,
       color: Colors.transparent,
       child: InkResponse(
-        onTap: disabled ? () {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text("A opção de favorito ainda não está disponível para este tipo de dispositivo."),
-              backgroundColor: Colors.orange,
-              behavior: SnackBarBehavior.floating,
-            ),
-          );
-        } : onTap,
+        onTap: disabled
+            ? () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text("A opção de favorito ainda não está disponível para este tipo de dispositivo."),
+                    backgroundColor: Colors.orange,
+                    behavior: SnackBarBehavior.floating,
+                  ),
+                );
+              }
+            : onTap,
         radius: 24,
         child: Container(
           padding: const EdgeInsets.all(8),
@@ -1044,7 +1046,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
   @override
   void dispose() {
     _nameCtrl.dispose();
-    _ipControl.dispose(); // 👈 adicione isso também
+    _ipControl.dispose();
     super.dispose();
   }
 
@@ -1079,11 +1081,16 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
         isDense: true,
       );
 
-  final List<Map<String, dynamic>> _triggers = [
+  final List<Map<String, dynamic>> _triggersTrigger = [
     {"key": "single_click", "label": "Clique"},
     {"key": "double_click", "label": "Clique duplo"},
     {"key": "triple_click", "label": "Clique triplo"},
     {"key": "long_click", "label": "Clique longo"},
+  ];
+
+  final List<Map<String, dynamic>> _triggersContact = [
+    {"key": "opened", "label": "Aberto (sem ímã)"},
+    {"key": "closed", "label": "Fechado (com ímã)"},
   ];
 
   final Map<String, Map<String, dynamic>> _triggerActions = {};
@@ -1128,7 +1135,10 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
       _loadAvailableDevices();
     }
 
-    return _triggers.map((trigger) {
+    // Escolhe os triggers baseado no tipo do dispositivo
+    final triggers = _type.toLowerCase() == 'contact' ? _triggersContact : _triggersTrigger;
+
+    return triggers.map((trigger) {
       final key = trigger['key'];
       final current = _triggerActions[key];
 
@@ -1214,7 +1224,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                     _availableDevices
                         .firstWhere(
                           (d) => d.id == current['deviceId'],
-                          orElse: () => _availableDevices.first,
+                          orElse: () => Device(deviceId: '', id: 0, name: '', type: 'unknown', ip: '', icon: '', groupId: 0, isFavorite: false, ivKey: '', state: '', ssid: '', communicationMode: ''),
                         )
                         .type,
                   ).map((a) => DropdownMenuItem(value: a, child: Text(a))).toList(),
@@ -1390,12 +1400,12 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
                             ),
                           ],
                         ),
-                        if (_type.toLowerCase() == 'trigger') ...[
+                        if (_type.toLowerCase() == 'trigger' || _type.toLowerCase() == 'contact') ...[
                           const SizedBox(height: 20),
                           Align(
                             alignment: Alignment.centerLeft,
                             child: Text(
-                              "Ações de Gatilho",
+                              _type.toLowerCase() == 'contact' ? "Ações de Sensor" : "Ações de Gatilho",
                               style: Theme.of(context).textTheme.titleMedium!.copyWith(
                                     fontWeight: FontWeight.bold,
                                     color: Colors.brown.shade800,
