@@ -157,12 +157,22 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
         e.printStackTrace()
     }
 
+    // Detecta altura disponível para decidir quantas linhas exibir
+    val options = appWidgetManager.getAppWidgetOptions(appWidgetId)
+    val minHeightDp = options.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 180)
+    val maxRows = if (minHeightDp < 160) 1 else 2
+
     val views = RemoteViews(context.packageName, R.layout.device_action_widget)
     views.removeAllViews(R.id.widget_container)
 
+    val visibleDevices = deviceList.take(maxRows * 3)
+
+    // Calcula quantas colunas usar: 2 para até 2 dispositivos, 3 para mais
+    val columns = if (visibleDevices.size <= 2) 2 else 3
+
     var rowView: RemoteViews? = null
-    for ((index, device) in deviceList.withIndex()) {
-        if (index % 3 == 0) { // A cada 4 dispositivos, cria uma nova linha
+    for ((index, device) in visibleDevices.withIndex()) {
+        if (index % columns == 0) {
             rowView = RemoteViews(context.packageName, R.layout.widget_row)
             views.addView(R.id.widget_container, rowView)
         }
@@ -173,7 +183,7 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
         val iconNameFormatted = device.icon
             .replace(Regex("([a-z])([A-Z]+)"), "$1_$2")
             .lowercase()
-            
+
         val iconResId = context.resources.getIdentifier(
             iconNameFormatted, "drawable", context.packageName
         )
@@ -191,7 +201,7 @@ val sharedPreferences = context.getSharedPreferences("FlutterSharedPreferences",
 
         val pendingIntent = PendingIntent.getBroadcast(
             context,
-            device.name.hashCode(),
+            device.id.hashCode(),
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
