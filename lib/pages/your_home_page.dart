@@ -821,7 +821,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
               String chave_iv = "";
               if (!deviceId.toLowerCase().contains("trigger") && !deviceId.toLowerCase().contains("contact")) {
-                const maxRetries = 3;
+                const maxRetries = 10;
                 int attempt = 0;
                 bool success = false;
 
