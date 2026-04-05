@@ -1,13 +1,30 @@
+// =============================================================================
+// device.dart
+//
+// Modelo de dispositivo inteligente Barrel.
+// Persistido localmente via Hive (typeId: 0) e sincronizado com a API REST.
+//
+// Campos principais:
+//   - deviceId: identificador do firmware (ex.: "ESP_SWITCH_01"), imutável
+//   - ivKey:    chave AES-CBC no formato "keyHex:ivHex" para cifrar comandos
+//   - state:    estado atual do dispositivo ("on" / "off" / valor customizado)
+// =============================================================================
+
 import 'package:hive/hive.dart';
 import 'package:smart_home/models/device_action.dart';
 
 part 'device.g.dart';
 
+/// Representa um dispositivo inteligente cadastrado pelo usuário.
+///
+/// Persistido no Hive com typeId 0. A sincronização com a API REST é feita
+/// por [DeviceRepository].
 @HiveType(typeId: 0)
 class Device extends HiveObject {
   @HiveField(0)
   int id;
 
+  /// Identificador fixo do firmware (ex.: "ESP_SWITCH_01"). Não pode ser alterado após o cadastro.
   @HiveField(1)
   String deviceId;
 
@@ -20,33 +37,42 @@ class Device extends HiveObject {
   @HiveField(4)
   String ip;
 
+  /// Chave de criptografia AES-CBC no formato "keyHex:ivHex".
+  /// Usada por [CryptoUtils.encryptData] para cifrar comandos enviados ao firmware.
   @HiveField(5)
   String ivKey;
 
+  /// Estado atual do dispositivo. Valores comuns: "on", "off" ou valor numérico (dimmers).
   @HiveField(6)
   String state;
 
   @HiveField(7, defaultValue: false)
   bool isFavorite;
 
+  /// SSID da rede Wi-Fi à qual o dispositivo está conectado.
   @HiveField(8)
   String ssid;
 
+  /// Modo de comunicação preferido: "auto" (HTTP local ou MQTT) ou "local" (somente HTTP).
   @HiveField(9)
   String communicationMode;
 
   @HiveField(10)
   int? groupId;
 
+  /// Indica se este dispositivo foi compartilhado com o usuário por outra conta.
   @HiveField(11, defaultValue: false)
   bool isShared;
 
   @HiveField(12, defaultValue: "")
   String icon;
 
+  /// Nome do usuário proprietário do dispositivo.
+  /// Mantido em snake_case por compatibilidade com o contrato da API REST.
   @HiveField(13, defaultValue: "")
   String owner_username;
 
+  /// Automações configuradas para este dispositivo (trigger → target).
   @HiveField(14)
   List<DeviceAction>? actions;
 
@@ -68,6 +94,7 @@ class Device extends HiveObject {
     this.actions,
   });
 
+  /// Constrói um [Device] a partir de um JSON retornado pela API REST.
   factory Device.fromJson(Map<String, dynamic> json) {
     return Device(
       id: json['id'],
@@ -90,6 +117,7 @@ class Device extends HiveObject {
     );
   }
 
+  /// Retorna uma cópia deste dispositivo com os campos especificados substituídos.
   Device copyWith({
     int? id,
     String? deviceId,
@@ -126,6 +154,7 @@ class Device extends HiveObject {
     );
   }
 
+  /// Serializa o dispositivo para JSON (para criação via POST — sem o campo 'id').
   Map<String, dynamic> toJson() => {
         "device_id": deviceId,
         "name": name,
@@ -144,6 +173,7 @@ class Device extends HiveObject {
           "actions": actions!.map((a) => a.toJson()).toList(),
       };
 
+  /// Serializa o dispositivo para JSON incluindo o campo 'id' (para atualização via PUT).
   Map<String, dynamic> toJsonWithId() => {
         "id": id,
         "device_id": deviceId,

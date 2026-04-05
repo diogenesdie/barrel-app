@@ -1,5 +1,20 @@
+// =============================================================================
+// sequencial_text_switch.dart
+//
+// Widget que anima a troca de texto com fade + slide suave.
+// Usado nos cards de dispositivo para mostrar estado ("Ligado" / "Desligado")
+// sem flicker visual quando o estado muda rapidamente.
+//
+// Nota: o nome do arquivo mantém o typo original por compatibilidade com imports existentes.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 
+/// Exibe [text] com animação de fade e slide ao mudar o valor.
+///
+/// Ao receber um novo [text], apaga o texto atual com fade-out (400ms) e
+/// exibe o novo com fade-in + slide-up, evitando troca brusca.
 class SequentialTextSwitcher extends StatefulWidget {
   final String text;
 

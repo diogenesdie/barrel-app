@@ -1,7 +1,19 @@
+// =============================================================================
+// group.dart
+//
+// Modelo de grupo de dispositivos.
+// Grupos organizam dispositivos em categorias (ex.: sala, quarto).
+// Persistido via Hive (typeId: 1) e sincronizado com a API REST.
+// =============================================================================
+
 import 'package:hive/hive.dart';
 
 part 'group.g.dart';
 
+/// Representa um grupo (cômodo/categoria) que organiza dispositivos na interface.
+///
+/// Persistido no Hive com typeId 1. A sincronização com a API REST é feita
+/// por [GroupRepository].
 @HiveType(typeId: 1)
 class Group extends HiveObject {
   @HiveField(0)
@@ -27,6 +39,7 @@ class Group extends HiveObject {
     this.isDefault = false,
   });
 
+  /// Constrói um [Group] a partir de um JSON retornado pela API REST.
   factory Group.fromJson(Map<String, dynamic> json) {
     return Group(
       id: json['id'],
@@ -37,6 +50,7 @@ class Group extends HiveObject {
     );
   }
 
+  /// Retorna uma cópia com os campos especificados substituídos.
   Group copyWith({
     int? id,
     String? name,
@@ -53,6 +67,7 @@ class Group extends HiveObject {
     );
   }
 
+  /// Serializa para JSON (sem o campo 'id', usado em criação e atualização).
   Map<String, dynamic> toJson() => {
         "name": name,
         "position": position,

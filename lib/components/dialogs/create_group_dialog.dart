@@ -1,14 +1,31 @@
+// =============================================================================
+// create_group_dialog.dart
+//
+// Dialog para criar ou editar um grupo de dispositivos.
+//
+// Retorno via Navigator.pop:
+//   - [Group] salvo (criação ou edição bem-sucedida)
+//   - [Group] com position=-1 se o grupo foi excluído durante a edição
+//   - null se o usuário cancelou
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Projeto — modelos e utils
 import 'package:smart_home/models/group.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 
+// Nota: função duplicada em auth_page.dart, devices_page.dart e checking_session_page.dart.
+// Candidata à extração futura para lib/core/theme_utils.dart.
 LinearGradient appGradient(BuildContext context) => LinearGradient(
       colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
 
+/// Dialog para criar ou editar um grupo de dispositivos.
 class CreateGroupDialog extends StatefulWidget {
   final int currentGroupCount;
   final Group? initialGroup;

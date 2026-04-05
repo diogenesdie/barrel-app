@@ -1,5 +1,16 @@
+// =============================================================================
+// no_device.dart
+//
+// Widget de estado vazio exibido quando não há dispositivos cadastrados.
+// Suporta callback [onTap] para guiar o usuário ao fluxo de adição.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 
+/// Exibe um card de estado vazio com ícone e texto padrão.
+///
+/// [onTap] é chamado quando o usuário toca no card (ex.: abrir tela de adição).
 Widget noDevice({Function? onTap}) {
   return GestureDetector(
       child: SizedBox(

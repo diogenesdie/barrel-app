@@ -1,18 +1,42 @@
+// =============================================================================
+// main.dart
+//
+// Ponto de entrada do aplicativo Barrel Smart Home.
+//
+// Responsabilidades:
+//   - Ignora certificados SSL inválidos em modo debug (DevHttpOverrides)
+//   - Inicializa os boxes Hive antes de runApp()
+//   - Define o tema global da aplicação (Material 3, cores marrons)
+//   - Configura as rotas nomeadas do aplicativo
+// =============================================================================
+
+// Dart SDK
 import 'dart:io';
 
+// Flutter
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+
+// Projeto — modelos
 import 'package:smart_home/models/device_action_repository.dart';
 import 'package:smart_home/models/device_button_repository.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
+
+// Projeto — páginas
+import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/pages/checking_session_page.dart';
 import 'package:smart_home/pages/home_page.dart';
-import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/pages/manage_shares_page.dart';
 
+/// Sobrescreve o cliente HTTP para aceitar certificados inválidos em [kDebugMode].
+///
+/// Necessário para desenvolvimento local com servidores que usam certificados
+/// autoassinados. Nunca habilitado em builds de produção.
 class DevHttpOverrides extends HttpOverrides {
   @override
+
+  /// Permite qualquer certificado quando o app está rodando em modo de desenvolvimento.
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
     client.badCertificateCallback = (X509Certificate cert, String host, int port) {
@@ -22,6 +46,7 @@ class DevHttpOverrides extends HttpOverrides {
   }
 }
 
+/// Inicializa o Hive, registra adapters e inicia o aplicativo.
 void main() async {
   if (kDebugMode) {
     HttpOverrides.global = DevHttpOverrides();
@@ -36,6 +61,7 @@ void main() async {
   runApp(const SmartHomeApp());
 }
 
+/// Widget raiz do aplicativo. Define tema global e rotas nomeadas.
 class SmartHomeApp extends StatelessWidget {
   const SmartHomeApp({super.key});
 
@@ -172,6 +198,8 @@ class SmartHomeApp extends StatelessWidget {
           backgroundColor: Colors.brown,
           foregroundColor: Colors.white,
         ),
+        // NOTA: Estilo alternativo para InputDecorationTheme com bordas arredondadas.
+        //       Mantido para referência; o estilo ativo usa UnderlineInputBorder acima.
         // inputDecorationTheme: InputDecorationTheme(
         //   filled: true,
         //   fillColor: Colors.white,

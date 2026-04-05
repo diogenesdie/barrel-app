@@ -1,5 +1,16 @@
+// =============================================================================
+// gradient_icon.dart
+//
+// Ícone com gradiente aplicado via ShaderMask.
+// Usado na barra de navegação inferior para destacar o item selecionado.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 
+/// Ícone que aplica um [gradient] quando [isSelected] é true; cinza caso contrário.
+///
+/// Usa [ShaderMask] para sobrepor o gradiente ao ícone branco subjacente.
 class GradientIcon extends StatelessWidget {
   final IconData icon;
   final double size;

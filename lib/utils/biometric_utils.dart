@@ -1,10 +1,33 @@
+// =============================================================================
+// biometric_utils.dart
+//
+// Autenticação biométrica (digital, rosto) para ações sensíveis.
+// As preferências por tipo são lidas de [SessionUtils.getBiometricPreferences].
+//
+// Tipos suportados:
+//   'login'         — exigido ao abrir o app
+//   'edit_device'   — exigido ao salvar edições de dispositivo
+//   'remove_device' — exigido ao remover um dispositivo
+//
+// Se a preferência estiver desabilitada para o tipo, retorna true imediatamente
+// (autenticação pulada).
+// =============================================================================
+
+// Terceiros
 import 'package:local_auth/local_auth.dart';
+
+// Projeto — utils
 import 'package:smart_home/utils/session_utils.dart';
 
+/// Wrapper de autenticação biométrica do aplicativo.
 class BiometricUtils {
   static final LocalAuthentication _auth = LocalAuthentication();
 
-  /// Solicita autenticação biométrica (digital, rosto, etc.)
+  /// Solicita autenticação biométrica para o [type] especificado.
+  ///
+  /// Retorna true se autenticado com sucesso ou se a biometria está desabilitada
+  /// para o [type]. Retorna false se o dispositivo não suporta biometria ou se
+  /// o usuário cancelou.
   static Future<bool> authenticate(String type, {String reason = "Autentique-se"}) async {
     try {
       final biometricPreferences = await SessionUtils.getBiometricPreferences();

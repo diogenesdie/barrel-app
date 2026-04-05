@@ -1,7 +1,20 @@
+// =============================================================================
+// device_action.dart
+//
+// Modelo de automação entre dispositivos.
+// Define que, quando um dispositivo (trigger) recebe um evento, outro
+// dispositivo (target) executa uma ação.
+// Persistido via Hive (typeId: 2) como parte do [Device.actions].
+// =============================================================================
+
 import 'package:hive/hive.dart';
 
 part 'device_action.g.dart';
 
+/// Define uma automação entre dois dispositivos.
+///
+/// Exemplo: quando o sensor de porta (trigger) detectar abertura (triggerEvent "open"),
+/// a lâmpada (target) deve executar a ação "turnOn" (actionType).
 @HiveType(typeId: 2)
 class DeviceAction extends HiveObject {
   @HiveField(0)
@@ -39,6 +52,7 @@ class DeviceAction extends HiveObject {
     required this.targetDeviceQueue,
   });
 
+  /// Constrói um [DeviceAction] a partir do JSON retornado pela API REST.
   factory DeviceAction.fromJson(Map<String, dynamic> json) {
     return DeviceAction(
       id: json['id'],
@@ -52,6 +66,8 @@ class DeviceAction extends HiveObject {
     );
   }
 
+  /// Serializa para JSON incluindo apenas os campos necessários para a API.
+  /// Campos de exibição (targetDeviceName, ip, queue) são omitidos.
   Map<String, dynamic> toJson() => {
         "trigger_device_id": triggerDeviceId,
         "trigger_event": triggerEvent,

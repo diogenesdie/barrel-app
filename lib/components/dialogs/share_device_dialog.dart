@@ -1,12 +1,30 @@
+// =============================================================================
+// share_device_dialog.dart
+//
+// Dialog para compartilhar um dispositivo ou grupo com outro usuário pelo código.
+// Exatamente um de [deviceId] ou [groupId] deve ser fornecido (assertion).
+// O código do destinatário é digitado manualmente e enviado à API REST.
+// =============================================================================
+
+// Dart SDK
 import 'dart:async';
 import 'dart:convert';
+
+// Flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+// Terceiros
 import 'package:http/http.dart' as http;
+
+// Projeto
+import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
-import 'package:smart_home/core/constants.dart';
 
+/// Dialog para compartilhar um dispositivo ou grupo com outro usuário.
+///
+/// Exatamente um de [deviceId] ou [groupId] deve ser não-nulo.
 class ShareDeviceDialog extends StatefulWidget {
   final int? deviceId;
   final int? groupId;

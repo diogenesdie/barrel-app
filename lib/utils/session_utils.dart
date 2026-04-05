@@ -1,22 +1,49 @@
+// =============================================================================
+// session_utils.dart
+//
+// Utilitários de sessão e autenticação do usuário.
+//
+// Armazenamento:
+//   - Token, usuário, username, senha e expiração: FlutterSecureStorage (cifrado)
+//   - Credenciais duplicadas em SharedPreferences via [syncCredentialsToPrefs]
+//     para acesso pelo home screen widget (que não pode usar SecureStorage)
+//
+// Preferências biométricas: lidas do objeto de usuário salvo no SecureStorage,
+// espelhando os campos biometric_login, biometric_edit e biometric_remove da API.
+// =============================================================================
+
+// Dart SDK
 import 'dart:convert';
+
+// Terceiros
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — core e modelos
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device_action_repository.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
-import 'package:smart_home/utils/widget_utils.dart';
-import 'package:http/http.dart' as http;
 
+// Projeto — utils
+import 'package:smart_home/utils/widget_utils.dart';
+
+/// Utilitários estáticos para gerenciar a sessão autenticada do usuário.
 class SessionUtils {
   static const _storage = FlutterSecureStorage();
 
+  // SECTION: Chaves internas de armazenamento
   static const _kToken = 'auth_token';
   static const _kUser = 'auth_user';
   static const _kUsername = 'auth_username';
   static const _kPassword = 'auth_password';
   static const _kExpiresAt = 'auth_expires_at';
 
+  // SECTION: Gravação de sessão
+
+  /// Salva todos os dados de sessão recebidos da API após login/registro.
+  /// Também sincroniza com SharedPreferences e atualiza o home screen widget.
   static Future<void> saveSession(Map<String, dynamic> apiResponse, String password) async {
     await _storage.write(key: _kToken, value: apiResponse['token'] as String?);
     await _storage.write(key: _kUser, value: jsonEncode(apiResponse));
@@ -30,6 +57,7 @@ class SessionUtils {
     updateWidget();
   }
 
+  /// Copia username e password para SharedPreferences, necessário para o home screen widget.
   static Future<void> syncCredentialsToPrefs() async {
     final username = await _storage.read(key: _kUsername);
     final password = await _storage.read(key: _kPassword);
@@ -41,6 +69,9 @@ class SessionUtils {
     }
   }
 
+  // SECTION: Leitura de dados da sessão
+
+  /// Retorna o token de autenticação ou null se não houver sessão.
   static Future<String?> getToken() async {
     try {
       return await _storage.read(key: _kToken);
@@ -49,6 +80,7 @@ class SessionUtils {
     }
   }
 
+  /// Retorna o objeto completo do usuário (resposta da API) ou null.
   static Future<Map<String, dynamic>?> getUser() async {
     try {
       final data = await _storage.read(key: _kUser);
@@ -59,6 +91,7 @@ class SessionUtils {
     }
   }
 
+  /// Retorna o username do usuário logado ou null.
   static Future<String?> getUsername() async {
     try {
       return await _storage.read(key: _kUsername);
@@ -67,6 +100,7 @@ class SessionUtils {
     }
   }
 
+  /// Retorna a senha do usuário logado (necessária para reconexão MQTT) ou null.
   static Future<String?> getPassword() async {
     try {
       return await _storage.read(key: _kPassword);
@@ -75,6 +109,7 @@ class SessionUtils {
     }
   }
 
+  /// Retorna a data de expiração do token ou null.
   static Future<DateTime?> getExpiresAt() async {
     try {
       final v = await _storage.read(key: _kExpiresAt);
@@ -85,6 +120,10 @@ class SessionUtils {
     }
   }
 
+  // SECTION: Remoção de sessão
+
+  /// Remove todos os dados de sessão do SecureStorage, SharedPreferences e Hive.
+  /// Chamado no logout e quando o token expira.
   static Future<void> clearSession() async {
     SharedPreferences prefs = await SharedPreferences.getInstance();
     await prefs.remove('weather_timestamp');
@@ -107,6 +146,9 @@ class SessionUtils {
     await _storage.deleteAll();
   }
 
+  // SECTION: Verificação de estado de login
+
+  /// Retorna true se há sessão válida e não expirada. Faz logout automático se expirada.
   static Future<bool> isLoggedIn() async {
     final token = await getToken();
     final expiresAt = await getExpiresAt();
@@ -118,6 +160,10 @@ class SessionUtils {
     return true;
   }
 
+  // SECTION: Atualização de perfil
+
+  /// Envia PATCH para a API e atualiza o objeto de usuário local com os novos [data].
+  /// Retorna true se bem-sucedido.
   static Future<bool> updateUserProfile(Map<String, dynamic> data) async {
     try {
       final token = await getToken();
@@ -158,6 +204,10 @@ class SessionUtils {
     }
   }
 
+  // SECTION: Preferências biométricas
+
+  /// Retorna as preferências biométricas do usuário.
+  /// As chaves retornadas são: 'biometric_login', 'biometric_edit', 'biometric_remove'.
   static Future<Map<String, bool>> getBiometricPreferences() async {
     final user = await getUser();
     if (user == null) {

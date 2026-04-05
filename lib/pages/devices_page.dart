@@ -1,32 +1,68 @@
+// =============================================================================
+// devices_page.dart
+//
+// Tela de gerenciamento completo de dispositivos.
+//
+// Funcionalidades:
+//   - Lista dispositivos organizados em grupos reordenáveis (drag-and-drop)
+//   - Notificações de compartilhamentos pendentes ([SharingNotificationWidget])
+//   - Tutorial interativo (TutorialCoachMark) no primeiro acesso
+//   - Edição inline de grupos (criar, renomear, excluir)
+//   - Remoção de dispositivos com confirmação biométrica
+//
+// Classes neste arquivo:
+//   - [DevicesPage]:          tela pública de listagem e gerenciamento
+//   - [DeviceEditPage]:       tela de edição completa de um dispositivo
+//   - [_DeviceCard]:          card de dispositivo com ações de favorito/compartilhamento
+//   - [_ShareButton]:         botão de compartilhamento com gradiente
+//   - [_GradientStarButton]:  botão de favorito com gradiente
+//   - [_GroupIconButton]:     botão circular para ações de grupo (editar/excluir)
+//
+// Nota: [appGradient] está duplicado em auth_page.dart, checking_session_page.dart
+// e create_group_dialog.dart. Candidato à extração futura para lib/core/theme_utils.dart.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+
+// Projeto — componentes
 import 'package:smart_home/components/device_warning.dart';
 import 'package:smart_home/components/dialogs/create_group_dialog.dart';
 import 'package:smart_home/components/dialogs/share_device_dialog.dart';
 import 'package:smart_home/components/no_device.dart';
 import 'package:smart_home/components/sharing_notification_widget.dart';
+
+// Projeto — core e modelos
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device.dart';
 import 'package:smart_home/models/device_action.dart';
 import 'package:smart_home/models/device_repository.dart';
-import 'package:smart_home/models/group.dart';
-import 'package:smart_home/models/group_repository.dart';
 import 'package:smart_home/models/device_share.dart';
 import 'package:smart_home/models/device_share_repository.dart';
+import 'package:smart_home/models/group.dart';
+import 'package:smart_home/models/group_repository.dart';
+
+// Projeto — páginas e utils
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/devices_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
 
+// Nota: função duplicada em auth_page.dart, checking_session_page.dart e create_group_dialog.dart.
+// Candidata à extração futura para lib/core/theme_utils.dart.
 LinearGradient appGradient(BuildContext context) => LinearGradient(
       colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
 
+/// Botão circular com ícone usado nas ações de grupo (editar, excluir).
 class _GroupIconButton extends StatelessWidget {
   final IconData icon;
   final String tooltip;
@@ -66,6 +102,7 @@ class _GroupIconButton extends StatelessWidget {
   }
 }
 
+/// Tela de listagem e gerenciamento de dispositivos organizados em grupos.
 class DevicesPage extends StatefulWidget {
   const DevicesPage({super.key});
 
@@ -74,14 +111,17 @@ class DevicesPage extends StatefulWidget {
 }
 
 class _DevicesPageState extends State<DevicesPage> {
+  // SECTION: Estado — dispositivos
   late List<Device> _devices = [];
   late DeviceRepository _deviceRepo;
   bool isLoadingDevices = false;
 
+  // SECTION: Estado — grupos
   late List<Group> groups = [];
   late GroupRepository _groupRepo;
   bool isLoadingGroups = false;
 
+  // SECTION: Estado — compartilhamentos pendentes
   late List<DeviceShare> _pendingShares = [];
   late DeviceShareRepository _shareRepo;
   bool isLoadingShares = false;
@@ -90,6 +130,7 @@ class _DevicesPageState extends State<DevicesPage> {
   Set<int> expandedGroups = {};
   final Map<int, ExpansionTileController> _controllers = {};
 
+  // SECTION: Estado — tutorial
   final GlobalKey _firstGroupKey = GlobalKey();
   List<TargetFocus> _tutorialTargets = [];
   bool _tutorialShown = false;
@@ -101,6 +142,9 @@ class _DevicesPageState extends State<DevicesPage> {
   final Map<int, GlobalKey> _deviceShareKeys = {};
   final Map<int, GlobalKey> _deviceFavoriteKeys = {};
 
+  // SECTION: Helpers de GlobalKey para tutorial
+
+  /// Retorna (ou cria) a GlobalKey do tutorial para o [deviceId].
   GlobalKey _ensureDeviceTutorialKey(int deviceId) {
     return _deviceTutorialKeys.putIfAbsent(
       deviceId,
@@ -140,6 +184,9 @@ class _DevicesPageState extends State<DevicesPage> {
     super.dispose();
   }
 
+  // SECTION: Inicialização e carregamento de dados
+
+  /// Carrega grupos, dispositivos e compartilhamentos em sequência, então inicia tutorial.
   Future<void> _initializeData() async {
     await _loadGroups();
     await _loadDevices();
@@ -150,6 +197,9 @@ class _DevicesPageState extends State<DevicesPage> {
     });
   }
 
+  // SECTION: Tutorial interativo
+
+  /// Exibe o tutorial de reordenação de grupos no primeiro acesso.
   Future<void> _maybeShowReorderTutorial() async {
     final prefs = await SharedPreferences.getInstance();
     _tutorialShown = prefs.getBool("tutorial_reorder_shown") ?? false;
@@ -388,6 +438,9 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
+  // SECTION: Ações sobre compartilhamentos
+
+  /// Aceita o compartilhamento e recarrega a lista de dispositivos e grupos.
   Future<void> _acceptShare(int shareId) async {
     try {
       final success = await _shareRepo.acceptShare(shareId);
@@ -417,6 +470,7 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
+  /// Recusa o compartilhamento e atualiza a lista de pendentes.
   Future<void> _rejectShare(int shareId) async {
     try {
       final success = await _shareRepo.revokeShare(shareId);
@@ -443,6 +497,7 @@ class _DevicesPageState extends State<DevicesPage> {
     }
   }
 
+  /// Recarrega dispositivos, grupos e compartilhamentos em paralelo.
   Future<void> _refreshPage() async {
     await Future.wait([
       _loadDevices(),
@@ -451,6 +506,10 @@ class _DevicesPageState extends State<DevicesPage> {
     ]);
   }
 
+  // SECTION: Ações sobre grupos
+
+  /// Abre o [CreateGroupDialog] para editar o [groupSelecionado].
+  /// Recarrega os grupos após fechar o dialog.
   Future<void> _editGroup() async {
     final updated = await showDialog<Group>(
       context: context,
@@ -796,6 +855,7 @@ class _DevicesPageState extends State<DevicesPage> {
 
 enum DeviceType { rfControl, feeder, unknown }
 
+/// Card de listagem de um dispositivo com ações de favorito e compartilhamento.
 class _DeviceCard extends StatelessWidget {
   final Device device;
   final VoidCallback onFavorite;
@@ -915,6 +975,7 @@ class _DeviceCard extends StatelessWidget {
   }
 }
 
+/// Botão de compartilhamento com ícone em gradiente do tema.
 class _ShareButton extends StatelessWidget {
   final VoidCallback onTap;
   final GlobalKey? shareKey;
@@ -949,6 +1010,7 @@ class _ShareButton extends StatelessWidget {
   }
 }
 
+/// Botão de favorito com estrela em gradiente. Exibe aviso quando [disabled] (tipos não suportados).
 class _GradientStarButton extends StatelessWidget {
   final bool selected;
   final VoidCallback onTap;
@@ -996,6 +1058,7 @@ class _GradientStarButton extends StatelessWidget {
   }
 }
 
+/// Tela de edição completa de um dispositivo: nome, IP, ícone, grupo e automações.
 class DeviceEditPage extends StatefulWidget {
   final Device device;
 
@@ -1006,6 +1069,7 @@ class DeviceEditPage extends StatefulWidget {
 }
 
 class _DeviceEditPageState extends State<DeviceEditPage> {
+  // SECTION: Estado e controllers
   late TextEditingController _nameCtrl;
   late TextEditingController _ipControl;
   late String _type;
@@ -1016,6 +1080,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
   List<Group> _groups = [];
   int? _selectedGroupId;
 
+  // SECTION: Inicialização
   @override
   void initState() {
     super.initState();
@@ -1050,6 +1115,8 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     super.dispose();
   }
 
+  // SECTION: Carregamento
+  /// Carrega a lista de grupos disponíveis para seleção.
   Future<void> _loadGroups() async {
     try {
       setState(() {
@@ -1075,12 +1142,14 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     }
   }
 
+  // SECTION: Helpers de formulário
   InputDecoration _dec(String label) => InputDecoration(
         labelText: label,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         isDense: true,
       );
 
+  // SECTION: Definições de triggers e ações de automação
   final List<Map<String, dynamic>> _triggersTrigger = [
     {"key": "single_click", "label": "Clique"},
     {"key": "double_click", "label": "Clique duplo"},
@@ -1097,6 +1166,8 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
 
   List<Device> _availableDevices = [];
 
+  // SECTION: Carregamento de dispositivos alvo
+  /// Carrega todos os dispositivos exceto o atual para uso como alvos de automação.
   Future<void> _loadAvailableDevices() async {
     try {
       final devices = _deviceRepo.getDevices();
@@ -1129,6 +1200,8 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     }
   }
 
+  // SECTION: UI — triggers e ações
+  /// Constrói os cards de configuração de automação para cada evento de trigger/contact.
   List<Widget> _buildTriggerActions(BuildContext context) {
     // dispara carregamento, mas não bloqueia a interface
     if (_availableDevices.isEmpty) {
@@ -1243,6 +1316,7 @@ class _DeviceEditPageState extends State<DeviceEditPage> {
     }).toList();
   }
 
+  // SECTION: UI — build principal
   @override
   Widget build(BuildContext context) {
     final grad = appGradient(context);

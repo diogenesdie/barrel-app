@@ -1,3 +1,19 @@
+// =============================================================================
+// device_share.dart
+//
+// Modelo de compartilhamento de dispositivo ou grupo entre usuários.
+// Não utiliza Hive — dados obtidos da API REST em tempo real.
+//
+// Status possíveis:
+//   P = Pendente (aguardando aceite do destinatário)
+//   A = Aceito
+//   R = Revogado/Recusado
+// =============================================================================
+
+/// Representa um compartilhamento de dispositivo ou grupo entre dois usuários.
+///
+/// Sem persistência local — carregado do servidor a cada acesso.
+/// Operações de aceite/revogação são feitas via [DeviceShareRepository].
 class DeviceShare {
   final int id;
   final int ownerId;
@@ -31,6 +47,7 @@ class DeviceShare {
     required this.updatedAt,
   });
 
+  /// Constrói um [DeviceShare] a partir do JSON retornado pela API REST.
   factory DeviceShare.fromJson(Map<String, dynamic> json) {
     return DeviceShare(
       id: json['id'],
@@ -50,10 +67,16 @@ class DeviceShare {
     );
   }
 
+  /// Retorna [true] se o compartilhamento está aguardando aceite do destinatário.
   bool get isPending => status == 'P';
+
+  /// Retorna [true] se o compartilhamento foi aceito.
   bool get isAccepted => status == 'A';
+
+  /// Retorna [true] se o compartilhamento foi revogado ou recusado.
   bool get isRevoked => status == 'R';
 
+  /// Retorna o tipo do compartilhamento como texto legível ('Dispositivo' ou 'Grupo').
   String get shareTypeText {
     if (deviceId != null) return 'Dispositivo';
     if (groupId != null) return 'Grupo';

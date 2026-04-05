@@ -1,41 +1,81 @@
-import 'package:app_settings/app_settings.dart';
+// =============================================================================
+// your_home_page.dart
+//
+// Dashboard principal do aplicativo. Exibe:
+//   - Cartão de clima com temperatura atual, mín/máx e saudação contextual
+//   - Grade de dispositivos agrupados por cômodo
+//   - Modal de adição de dispositivo via BLE (scan → seleção → configuração Wi-Fi)
+//   - Tutorial interativo (TutorialCoachMark) exibido na primeira abertura
+//   - Alerta de Wi-Fi 5 GHz, Bluetooth desativado e permissões negadas
+//
+// Modo de comunicação (COMM_KEY em SharedPreferences):
+//   - auto (true): tenta HTTP local primeiro; cai para MQTT se falhar
+//   - direto (false): somente HTTP local
+//
+// Nota: _sendHttpCommand e _getCurrentSsid são duplicadas em
+//   devices_utils.dart e button_sender_service.dart.
+// =============================================================================
+
+// Dart SDK
+import 'dart:async';
+
+// Flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+// Terceiros
+import 'package:app_settings/app_settings.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:multicast_dns/multicast_dns.dart';
-import 'package:permission_handler/permission_handler.dart';
 import 'package:http/http.dart' as http;
+import 'package:multicast_dns/multicast_dns.dart';
+import 'package:network_info_plus/network_info_plus.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+
+// Projeto — core
+import 'package:smart_home/core/constants.dart';
+
+// Projeto — models
+import 'package:smart_home/models/device.dart';
+import 'package:smart_home/models/device_repository.dart';
+import 'package:smart_home/models/group.dart';
+import 'package:smart_home/models/group_repository.dart';
+
+// Projeto — services
+import 'package:smart_home/services/mqtt_service.dart';
+
+// Projeto — utils
+import 'package:smart_home/utils/crypto_utils.dart';
+import 'package:smart_home/utils/devices_utils.dart';
+import 'package:smart_home/utils/permission_utils.dart';
+import 'package:smart_home/utils/session_utils.dart';
+import 'package:smart_home/utils/tutorial_events.dart';
+import 'package:smart_home/utils/weather_utils.dart';
+import 'package:smart_home/utils/wifi_utils.dart';
+
+// Projeto — components
 import 'package:smart_home/components/device_warning.dart';
 import 'package:smart_home/components/dialogs/device_config_dialog.dart';
 import 'package:smart_home/components/dialogs/error_message_dialog.dart';
 import 'package:smart_home/components/loading.dart';
 import 'package:smart_home/components/no_device.dart';
 import 'package:smart_home/components/sequencial_text_switch.dart';
-import 'package:smart_home/core/constants.dart';
-import 'package:smart_home/models/device.dart';
-import 'package:smart_home/models/device_repository.dart';
-import 'package:smart_home/models/group.dart';
-import 'package:smart_home/models/group_repository.dart';
-import 'package:smart_home/pages/device_buttons_page.dart';
-import 'package:smart_home/services/mqtt_service.dart';
-import 'package:smart_home/utils/crypto_utils.dart';
-import 'package:smart_home/utils/devices_utils.dart';
-import 'package:smart_home/utils/permission_utils.dart';
-import 'package:smart_home/utils/session_utils.dart';
-import 'package:smart_home/utils/tutorial_events.dart';
-import 'dart:async';
 
-import 'package:smart_home/utils/weather_utils.dart';
-import 'package:network_info_plus/network_info_plus.dart';
-import 'package:smart_home/utils/wifi_utils.dart';
-import 'package:tutorial_coach_mark/tutorial_coach_mark.dart';
+// Projeto — pages
+import 'package:smart_home/pages/device_buttons_page.dart';
 
 const String serviceUuid = "12345678-1234-5678-1234-56789abcdef0";
 const String wifiCharacteristicUuid = "abcdef01-1234-5678-1234-56789abcdef0";
 
+/// Botão quadrado com gradiente animado que reflete o estado (ligado/desligado)
+/// e o modo de comunicação ativo.
+///
+/// - [stateOn]: `true` → gradiente marrom; `false` + [autoMode] `true` → cinza.
+/// - [autoMode]: quando `false` (modo direto), o botão sempre mostra o gradiente
+///   marrom, independente do estado.
 class AnimatedGradientButton extends StatelessWidget {
   final bool stateOn;
   final IconData icon;
@@ -78,6 +118,8 @@ class AnimatedGradientButton extends StatelessWidget {
   }
 }
 
+/// Dashboard principal: cartão de clima, grade de dispositivos por grupo
+/// e FAB de adição via BLE.
 class YourHomePage extends StatefulWidget {
   const YourHomePage({super.key});
 
@@ -86,32 +128,46 @@ class YourHomePage extends StatefulWidget {
 }
 
 class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver {
+  // SECTION: Estado de dispositivos e grupos
   List<Device> devices = [];
   List<Group> groups = [];
+  bool isLoadingDevices = false;
+  bool isLoadingGroups = false;
+  late DeviceRepository _deviceRepo;
+  late GroupRepository _groupRepo;
+  late Group defaultGroup;
+
+  // SECTION: Estado de clima
   IWeather? weather;
+
+  // SECTION: Estado de BLE e adição de dispositivo
   final List<Map<String, dynamic>> esps = [];
   bool isScanning = false;
   bool isAdding = false;
   bool isConnecting = false;
-  bool isLoadingDevices = false;
-  bool isLoadingGroups = false;
   bool isBluetoothEnabled = true;
   BluetoothDevice? connectedDevice;
   BluetoothCharacteristic? wifiCharacteristic;
+  Map<String, dynamic>? _configuringEsp;
+  Future<List<Map<String, dynamic>>>? _scanFuture;
+  void Function(void Function())? _modalSetState;
+
+  // SECTION: Estado de Wi-Fi
   String? _wifiSSID;
   String? _wifiError;
   late TextEditingController ssidController;
   late TextEditingController passwordController;
   late TextEditingController accessKeyController;
-  Map<String, dynamic>? _configuringEsp;
-  Future<List<Map<String, dynamic>>>? _scanFuture;
-  late DeviceRepository _deviceRepo;
-  late GroupRepository _groupRepo;
-  void Function(void Function())? _modalSetState;
-  late Group defaultGroup;
+
+  // SECTION: Estado de modo de comunicação
+  bool _autoProtocol = true;
+  Timer? _prefsCheckTimer;
+
+  // SECTION: Tutorial
   final GlobalKey _addDeviceKey = GlobalKey();
   List<TargetFocus> _targets = [];
 
+  // SECTION: Inicialização e ciclo de vida
   @override
   void initState() {
     super.initState();
@@ -122,9 +178,6 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
 
     _startPrefsListener();
   }
-
-  bool _autoProtocol = true;
-  Timer? _prefsCheckTimer;
 
   void _startPrefsListener() {
     _prefsCheckTimer = Timer.periodic(const Duration(seconds: 1), (timer) async {
@@ -179,6 +232,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     await _loadWeather();
   }
 
+  // SECTION: Tutorial
   void _onTutorialEvent() {
     if (tutorialNotifier.value == "show_add_device") {
       tutorialNotifier.value = null;
@@ -269,6 +323,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     ).show(context: context);
   }
 
+  // SECTION: Permissões e Bluetooth
   Future<void> _requestPermissions() async {
     final scanStatus = await Permission.bluetoothScan.request();
     final connectStatus = await Permission.bluetoothConnect.request();
@@ -302,6 +357,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
+  // SECTION: Wi-Fi
   Future<void> _getWifiSSID() async {
     try {
       var status = await Permission.locationWhenInUse.status;
@@ -384,6 +440,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
+  // SECTION: Clima
   Future<void> _loadWeather() async {
     Map<String, double>? coords = await getCoords();
 
@@ -398,6 +455,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     });
   }
 
+  // SECTION: BLE — varredura e configuração
   void _startScan({void Function(void Function())? setModalState}) {
     if (isScanning) return;
 
@@ -490,6 +548,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     return foundDevices;
   }
 
+  // SECTION: Carregamento de dados
   Future<void> _loadGroups() async {
     setState(() => isLoadingGroups = true);
 
@@ -557,6 +616,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
+  // SECTION: Controle de dispositivos
   List<Color> _getButtonColor(String state) {
     if (state == "on") {
       return [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor];
@@ -579,6 +639,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     }
   }
 
+  // Nota: função duplicada em devices_utils.dart e button_sender_service.dart.
+  // Candidata à extração futura para um serviço centralizado.
   Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
     bool ok = false;
 
@@ -605,6 +667,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     return ok;
   }
 
+  // Nota: função duplicada em devices_utils.dart e button_sender_service.dart.
   Future<String?> _getCurrentSsid() async {
     final info = NetworkInfo();
     final ssid = await info.getWifiName();
@@ -834,6 +897,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     );
   }
 
+  // SECTION: Modal de adição de dispositivo
   void onAddDevice() async {
     showModalBottomSheet(
       context: context,
@@ -1205,6 +1269,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     });
   }
 
+  // SECTION: UI — card de dispositivo
   Widget _buildDeviceCard(Device device) {
     return Card(
       elevation: 2,
@@ -1292,6 +1357,7 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
     );
   }
 
+  // SECTION: UI — build principal
   @override
   Widget build(BuildContext context) {
     return Scaffold(

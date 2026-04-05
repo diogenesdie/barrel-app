@@ -1,10 +1,29 @@
+// =============================================================================
+// search_devices_page.dart
+//
+// Tela de descoberta de dispositivos Barrel via Bluetooth LE (BLE).
+// Escaneia dispositivos BLE próximos cujo SSID identifica o tipo Barrel,
+// e permite adicioná-los à conta do usuário via configuração Wi-Fi.
+//
+// Nota: o método discoverDevices() está comentado no initState — o fluxo de
+// descoberta foi migrado para your_home_page.dart.
+// =============================================================================
+
+// Dart SDK
 import 'dart:convert';
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — core
 import 'package:smart_home/core/constants.dart';
 
+/// Tela de busca e adição de dispositivos Barrel via BLE.
 class SearchDevicesPage extends StatefulWidget {
   const SearchDevicesPage({super.key});
 

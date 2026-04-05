@@ -1,23 +1,56 @@
+// =============================================================================
+// auth_page.dart
+//
+// Tela de autenticação do aplicativo Barrel Smart Home.
+//
+// Modos de exibição controlados por [AuthMode]:
+//   - escolha:  botões para entrar, registrar ou continuar sem cadastro
+//   - login:    formulário de login (usuário/e-mail + senha)
+//   - registro: formulário completo de cadastro
+//   - esqueceu: recuperação de senha por e-mail
+//
+// Componentes locais:
+//   - [GradientButton]: botão com gradiente reutilizável (usado em outras telas)
+//   - [appGradient]:    função auxiliar de gradiente do tema (usada em outras telas)
+//
+// Nota: [GradientButton] e [appGradient] são importados por
+// checking_session_page.dart, devices_page.dart e create_group_dialog.dart.
+// Candidatos à extração futura para lib/core/theme_utils.dart.
+// =============================================================================
+
+// Dart SDK
 import 'dart:async';
 import 'dart:convert';
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:http/http.dart' as http;
+
+// Projeto — core e modelos
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device_repository.dart';
 import 'package:smart_home/models/group_repository.dart';
+
+// Projeto — utils
 import 'package:smart_home/utils/session_utils.dart';
 
+/// Modos de exibição da tela de autenticação.
 enum AuthMode { escolha, login, registro, esqueceu }
 
-/// Mesmo gradiente usado no App (primaryColorLight -> primaryColor)
+// Nota: função duplicada em devices_page.dart, checking_session_page.dart e create_group_dialog.dart.
+// Candidata à extração futura para lib/core/theme_utils.dart.
 LinearGradient appGradient(BuildContext context) => LinearGradient(
       colors: [Theme.of(context).primaryColorLight, Theme.of(context).primaryColor],
       begin: Alignment.topLeft,
       end: Alignment.bottomRight,
     );
 
-/// Botão com gradiente reutilizável
-/// Botão com gradiente reutilizável (suporta estado de erro)
+/// Botão com gradiente do tema aplicado, suportando estado desabilitado e de erro.
+///
+/// - [error]: aplica gradiente vermelho para indicar falha.
+/// - [disabled]: aplica opacidade 50% e desabilita o toque.
 class GradientButton extends StatelessWidget {
   final Widget child;
   final VoidCallback? onPressed;
@@ -102,6 +135,7 @@ class GradientButton extends StatelessWidget {
 const String _loginUrl = "$BASE_API_AUTH_URL/login";
 const String _registerUrl = "$BASE_API_AUTH_URL/register";
 
+/// Tela de autenticação com suporte a login, registro e recuperação de senha.
 class AuthPage extends StatefulWidget {
   const AuthPage({super.key});
 
@@ -110,6 +144,7 @@ class AuthPage extends StatefulWidget {
 }
 
 class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
+  // SECTION: Estado do modo e formulário
   AuthMode _mode = AuthMode.escolha;
 
   final _formKey = GlobalKey<FormState>();
@@ -176,6 +211,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     super.dispose();
   }
 
+  // SECTION: Verificação de sessão existente
+
+  /// Verifica se já há sessão válida e redireciona para /home se positivo.
   Future<void> _checkExistingSession() async {
     final token = await SessionUtils.getToken();
     final expiresAtDateTime = await SessionUtils.getExpiresAt();
@@ -193,6 +231,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     }
   }
 
+  // SECTION: Sincronização de dados após login/registro
+
+  /// Sincroniza grupos e dispositivos da API para o cache local após autenticação.
   Future<void> syncData() async {
     final groupRepo = GroupRepository(apiBaseUrl: BASE_API_URL);
     final deviceRepo = DeviceRepository(apiBaseUrl: BASE_API_URL);
@@ -206,6 +247,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     Navigator.of(context).pushReplacementNamed('/home');
   }
 
+  // SECTION: Submissão de formulários
+
+  /// Valida e envia o formulário de login. Salva sessão e sincroniza dados em caso de sucesso.
   Future<void> _submitLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -284,6 +328,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     }
   }
 
+  /// Valida e envia o formulário de registro. Salva sessão e sincroniza dados em caso de sucesso.
   Future<void> _submitRegistro() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -348,8 +393,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
       if (mounted) setState(() => _loading = false);
     }
   }
-  // ===========================================================
+  // SECTION: Helpers de UI
 
+  /// Exibe um SnackBar com [text]. Vermelho se [isError], verde caso contrário.
   void _showSnack(String text, {bool isError = false}) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
@@ -362,6 +408,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     );
   }
 
+  // SECTION: Widgets de animação
+
+  /// Anima um widget com fade-in + slide de baixo para cima. Persiste visível após aparecer.
   Widget _fadeInUpPersistent({
     required bool visible,
     required Widget child,
@@ -422,6 +471,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     );
   }
 
+  /// Constrói o logo animado com rotação do ícone e fade-in sequencial dos textos.
   Widget _buildAnimatedLogo(double size) {
     return Column(
       children: [
@@ -484,6 +534,8 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     );
   }
 
+  // NOTA: Versão alternativa do logo sem animação — mantida para referência histórica.
+  //       Para restaurar, remover comentários e chamar _buildLogoNoAnimation em vez de _buildAnimatedLogo.
   // Widget _buildLogoNoAnimation(double maxWidth) {
   //   final size = maxWidth.clamp(120, 180).toDouble();
 
@@ -536,6 +588,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
   //   );
   // }
 
+  // SECTION: Helpers de formulário e validação
+
+  /// Retorna a decoração padrão dos campos de formulário da tela de auth.
   InputDecoration _dec(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
@@ -565,6 +620,9 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     return null;
   }
 
+  // SECTION: Widgets de formulário por modo
+
+  /// Exibe os três botões do modo [AuthMode.escolha]: Entrar, Registrar, Continuar sem cadastro.
   Widget _botoesEscolha(BuildContext context) {
     return Column(
       children: [
@@ -625,6 +683,7 @@ class _AuthPageState extends State<AuthPage> with TickerProviderStateMixin {
     );
   }
 
+  /// Formulário do modo [AuthMode.login].
   Widget _formLogin() {
     return Form(
       key: _formKey,

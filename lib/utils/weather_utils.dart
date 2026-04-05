@@ -1,11 +1,37 @@
-import 'package:flutter/material.dart';
-import 'package:geolocator/geolocator.dart';
+// =============================================================================
+// weather_utils.dart
+//
+// Integração com a API Open-Meteo para exibição do clima na tela inicial.
+//
+// Cache:
+//   - Dados meteorológicos: SharedPreferences, expiram à meia-noite do dia atual
+//   - Coordenadas GPS: SharedPreferences, expiram após 30 minutos (1.800.000 ms)
+//
+// Modelos de dados (definidos neste arquivo):
+//   - [IWeather]:         dados do clima do momento atual + próximos 3 dias
+//   - [IWeatherResponse]: resposta bruta da API Open-Meteo (dados horários/diários)
+//   - [DailyWeather]:     resumo diário (min/max temperatura + código meteorológico)
+//   - [IResponseError]:   exceção para erros da API
+// =============================================================================
+
+// Dart SDK
 import 'dart:convert';
+
+// Flutter
+import 'package:flutter/material.dart';
+
+// Terceiros
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:geocoding/geocoding.dart';
+
+// Projeto — utils
 import 'package:smart_home/utils/session_utils.dart';
 
+// SECTION: Geolocalização e cidade
+
+/// Retorna o nome da cidade correspondente às coordenadas, ou null se indisponível.
 Future<String?> getCityName(double latitude, double longitude) async {
   try {
     List<Placemark> placemarks = await placemarkFromCoordinates(latitude, longitude);
@@ -18,6 +44,9 @@ Future<String?> getCityName(double latitude, double longitude) async {
   return null;
 }
 
+// SECTION: Gradiente e saudação
+
+/// Retorna o gradiente do card de clima: azul (dia, antes das 18h) ou azul escuro (noite).
 LinearGradient getGradient() {
   int hour = DateTime.now().hour;
 
@@ -44,6 +73,7 @@ LinearGradient getGradient() {
   }
 }
 
+/// Retorna a saudação personalizada para o usuário logado com base na hora do dia.
 Future<String> getMessage() async {
   int hour = DateTime.now().hour;
   String? username = (await SessionUtils.getUser())?['name'];
@@ -66,6 +96,10 @@ Future<String> getMessage() async {
   }
 }
 
+// SECTION: Mapeamento de código meteorológico
+
+/// Converte o [weathercode] da API Open-Meteo para o nome do asset SVG correspondente.
+/// O nome retornado corresponde a um arquivo em assets/weather/.
 String getWeatherIconByCode(int weathercode, bool isNight) {
   switch (weathercode) {
     case 0: // clear
@@ -97,6 +131,12 @@ String getWeatherIconByCode(int weathercode, bool isNight) {
   }
 }
 
+// SECTION: Busca e cache de dados do clima
+
+/// Busca os dados do clima para as coordenadas fornecidas.
+///
+/// Usa cache do SharedPreferences que expira à meia-noite do dia atual.
+/// Se o cache ainda for válido, retorna os dados em cache sem chamada HTTP.
 Future<IWeather> getWeather(double latitude, double longitude, int currentHour) async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   String? cachedData = prefs.getString('weather_data');
@@ -145,6 +185,7 @@ Future<IWeather> getWeather(double latitude, double longitude, int currentHour) 
   return weather;
 }
 
+/// Extrai os dados da hora atual da resposta bruta [response] e retorna um [IWeather].
 IWeather getWeatherData(int currentHour, IWeatherResponse response) {
   List<String> time = response.time.map((time) => time.split("T")[1].split(":")[0]).toList();
   int currentHourIndex = time.indexOf(currentHour.toString());
@@ -178,6 +219,7 @@ IWeather getWeatherData(int currentHour, IWeatherResponse response) {
   );
 }
 
+/// Converte o número do dia da semana (1=segunda … 7=domingo) para o nome em português.
 String getDayOfWeek(int day) {
   switch (day) {
     case 1:
@@ -199,6 +241,8 @@ String getDayOfWeek(int day) {
   }
 }
 
+/// Retorna as coordenadas GPS do usuário, usando cache de 30 minutos.
+/// Solicita permissão de localização se necessário. Retorna null se negada.
 Future<Map<String, double>?> getCoords() async {
   SharedPreferences prefs = await SharedPreferences.getInstance();
   double? latitude = prefs.getDouble('latitude');
@@ -233,6 +277,9 @@ Future<Map<String, double>?> getCoords() async {
   };
 }
 
+// SECTION: Modelos de dados
+
+/// Dados do clima do momento atual, incluindo temperatura e previsão dos próximos 3 dias.
 class IWeather {
   final String time;
   final double temperature;
@@ -287,6 +334,8 @@ class IWeather {
   }
 }
 
+/// Resposta bruta da API Open-Meteo com dados horários e diários.
+/// Processada por [getWeatherData] para gerar um [IWeather].
 class IWeatherResponse {
   final List<String> time;
   final List<double> temperature2m;
@@ -305,6 +354,7 @@ class IWeatherResponse {
   });
 }
 
+/// Resumo de um dia: temperaturas mínima/máxima e código meteorológico.
 class DailyWeather {
   final double temperature2mMin;
   final double temperature2mMax;
@@ -333,6 +383,7 @@ class DailyWeather {
       );
 }
 
+/// Exceção lançada quando a API Open-Meteo retorna um status diferente de 200.
 class IResponseError implements Exception {
   final String message;
 

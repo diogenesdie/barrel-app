@@ -1,6 +1,17 @@
+// =============================================================================
+// error_message_dialog.dart
+//
+// Dialog de erro amigável exibido quando a configuração de um dispositivo falha.
+// Exibe um ícone animado (pulsante) e a mensagem de erro com animação de fade.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+/// Dialog de erro amigável com ícone animado e [message] personalizada.
 class FriendlyErrorDialog extends StatefulWidget {
   final String message;
 

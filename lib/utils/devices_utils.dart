@@ -1,13 +1,39 @@
+// =============================================================================
+// devices_utils.dart
+//
+// Funções utilitárias para identificação e exibição de dispositivos Barrel.
+//
+// Conteúdo:
+//   - Identificação de tipo e nome padrão pelo deviceId do firmware
+//   - Mapeamento de tipo para ícone e subtítulo descritivo
+//   - Catálogo de ícones customizáveis por tipo de dispositivo
+//   - Envio de comandos HTTP/MQTT (utilitários internos)
+//   - Tradução de nomes de ação (PT → comando de firmware e vice-versa)
+//   - Catálogo de ícones para botões de controle remoto
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:http/http.dart' as http;
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — core e modelos
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device.dart';
-import 'package:http/http.dart' as http;
+
+// Projeto — serviços e utils
 import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/crypto_utils.dart';
 
+// SECTION: Identificação de dispositivo por ID do firmware
+
+/// Retorna o tipo canônico do dispositivo com base em seu [id] de firmware.
+///
+/// Exemplos: "ESP_PLUG_01" → "plug", "ESP_LIGHT_01" → "light"
 String getDeviceType(String id) {
   if (id.contains("PLUG")) {
     return "plug";
@@ -30,6 +56,9 @@ String getDeviceType(String id) {
   return "unknown";
 }
 
+// SECTION: Nome padrão por ID do firmware
+
+/// Retorna o nome de exibição padrão do dispositivo com base em seu [id] de firmware.
 String getDeviceName(String id) {
   if (id.contains("PLUG")) {
     return "Barrel Plug";
@@ -52,6 +81,10 @@ String getDeviceName(String id) {
   return "Unknown";
 }
 
+// SECTION: Ícone padrão por tipo
+
+/// Retorna a chave do ícone padrão para o [type] especificado.
+/// A chave corresponde a uma entrada no [deviceTypeIcons].
 String getDefaultIconNameByType(String type) {
   switch (type) {
     case "plug":
@@ -75,6 +108,12 @@ String getDefaultIconNameByType(String type) {
   }
 }
 
+// SECTION: Resolução de ícone (custom ou padrão)
+
+/// Retorna o ícone do [device], respeitando a customização do usuário.
+///
+/// [device] pode ser um [Device] ou uma [String] com o tipo.
+/// Se [returnData] for true, retorna o [IconData] puro; caso contrário, retorna um [Icon].
 dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnData = false}) {
   var type = "unknown";
   var icon = "";
@@ -121,6 +160,9 @@ dynamic getDeviceIcon(dynamic device, {Color color = Colors.white, bool returnDa
   }
 }
 
+// SECTION: Ícone de grupo
+
+/// Retorna o [IconData] correspondente ao nome de ícone de um grupo.
 IconData getGroupIconData(String iconName) {
   switch (iconName) {
     case "house":
@@ -150,6 +192,9 @@ IconData getGroupIconData(String iconName) {
   }
 }
 
+// SECTION: Subtítulo descritivo por tipo
+
+/// Retorna uma descrição amigável do tipo de dispositivo para exibição na UI.
 String getDeviceSubtitle(String type) {
   switch (type) {
     case "feeder":
@@ -172,6 +217,12 @@ String getDeviceSubtitle(String type) {
   }
 }
 
+// SECTION: Catálogo de ícones disponíveis por tipo de dispositivo
+
+/// Mapa de ícones customizáveis por tipo de dispositivo.
+///
+/// Cada entrada contém uma lista de opções no formato `{"icon": IconData, "key": String}`.
+/// A chave [key] é persistida em [Device.icon]; o [icon] é o [IconData] exibido.
 Map<String, List<dynamic>> deviceTypeIcons = {
   "plug": [
     {"icon": FontAwesomeIcons.plug, "key": "plug"},
@@ -225,16 +276,25 @@ Map<String, List<dynamic>> deviceTypeIcons = {
   ],
 };
 
+/// Retorna o mapa completo de ícones por tipo. Atalho para [deviceTypeIcons].
 Map<String, List<dynamic>> getDeviceTypeIcons() {
   return deviceTypeIcons;
 }
 
+// SECTION: Utilitários internos de comunicação HTTP/MQTT
+
+/// Retorna o SSID da rede Wi-Fi atual, ou null se indisponível.
+///
+/// Nota: função equivalente existe em button_sender_service.dart e your_home_page.dart.
 Future<String?> _getCurrentSsid() async {
   final info = NetworkInfo();
   final ssid = await info.getWifiName();
   return ssid?.replaceAll('"', '');
 }
 
+/// Envia [newState] criptografado ao firmware do [device] via HTTP (porta 8080).
+///
+/// Nota: função equivalente existe em button_sender_service.dart e your_home_page.dart.
 Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
   bool ok = false;
   try {
@@ -259,6 +319,8 @@ Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) 
   return ok;
 }
 
+/// Envia o comando "clear" ao [device] para redefinir suas configurações.
+/// Usa HTTP local se na mesma rede Wi-Fi; caso contrário, usa MQTT.
 Future<bool> resetDevice(Device device, BuildContext context, bool mounted) async {
   final prefs = await SharedPreferences.getInstance();
   final autoMode = (prefs.getBool(COMM_KEY) ?? true) || device.type == "trigger";
@@ -285,6 +347,9 @@ Future<bool> resetDevice(Device device, BuildContext context, bool mounted) asyn
   return ok;
 }
 
+// SECTION: Ações disponíveis por tipo e tradução de comandos
+
+/// Retorna a lista de ações disponíveis (em português) para o [type] de dispositivo.
 List<String> getActionsForType(String type) {
   switch (type.toLowerCase()) {
     case 'switch':
@@ -298,6 +363,7 @@ List<String> getActionsForType(String type) {
   }
 }
 
+/// Traduz o nome de ação em português para o comando do firmware (ex.: "Ligar" → "on").
 String getActionCommand(String action) {
   switch (action.toLowerCase()) {
     case 'ligar':
@@ -315,6 +381,8 @@ String getActionCommand(String action) {
   }
 }
 
+/// Traduz o comando do firmware para o nome de ação em português (ex.: "on" → "Ligar").
+/// Retorna null se o comando não tiver mapeamento.
 String? getActionDisplayName(String command) {
   switch (command.toLowerCase()) {
     case 'on':
@@ -332,6 +400,10 @@ String? getActionDisplayName(String command) {
   }
 }
 
+// SECTION: Catálogo de ícones para botões de controle remoto
+
+/// Mapa de ícones disponíveis para botões de controle remoto IR/RF.
+/// A chave string é persistida em [DeviceButton.icon].
 final Map<String, IconData> buttonsIcons = {
   "power": FontAwesomeIcons.powerOff,
   "tv": FontAwesomeIcons.tv,

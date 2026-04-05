@@ -1,7 +1,21 @@
+// =============================================================================
+// edit_button_dialog.dart
+//
+// Dialog para editar label, cor e ícone de um botão de controle remoto.
+// Retorna o [DeviceButton] atualizado via Navigator.pop, ou null se cancelado.
+// Usado em [DeviceButtonsPage].
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Projeto — modelos
 import 'package:smart_home/models/device_button.dart';
 
+/// Dialog para personalizar o [label], cor e ícone de um botão de controle remoto.
 class EditButtonDialog extends StatefulWidget {
   final DeviceButton button;
 

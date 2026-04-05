@@ -1,8 +1,25 @@
+// =============================================================================
+// checking_session_page.dart
+//
+// Tela de splash exibida na inicialização do aplicativo.
+//
+// Fluxo:
+//   1. Aguarda 2 segundos (feedback visual de carregamento)
+//   2. Verifica se há token válido e não expirado
+//   3. Se válido: solicita biometria → redireciona para /home
+//   4. Se biometria falhar: exibe botão de nova tentativa
+//   5. Se inválido/ausente: redireciona para /auth
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Projeto — páginas e utils
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/biometric_utils.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
+/// Tela de splash que verifica a sessão existente e redireciona o usuário.
 class CheckingSessionPage extends StatefulWidget {
   const CheckingSessionPage({super.key});
 

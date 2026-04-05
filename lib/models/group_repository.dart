@@ -1,15 +1,35 @@
+// =============================================================================
+// group_repository.dart
+//
+// Repositório de grupos de dispositivos com persistência dual:
+//   - Local:  Hive (box "groupsBox") para acesso offline
+//   - Remoto: API REST via HTTP para sincronização com o servidor
+// =============================================================================
+
+// Dart SDK
 import 'dart:convert';
+
+// Terceiros
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
+
+// Projeto — utils
 import 'package:smart_home/utils/session_utils.dart';
+
+// Modelos locais (mesmo diretório)
 import 'group.dart';
 
+/// Repositório responsável pelo ciclo de vida dos grupos de dispositivos.
+///
+/// Gerencia criação, leitura, atualização e remoção no Hive local e na API REST.
 class GroupRepository {
   static const String _boxName = "groupsBox";
   final String apiBaseUrl;
 
   GroupRepository({required this.apiBaseUrl});
 
+  /// Inicializa o Hive e abre o box de grupos.
+  /// Deve ser chamado em [main()] antes de [runApp].
   static Future<void> initHive() async {
     await Hive.initFlutter();
     Hive.registerAdapter(GroupAdapter());
@@ -18,6 +38,7 @@ class GroupRepository {
 
   Box<Group> get _box => Hive.box<Group>(_boxName);
 
+  /// Salva o grupo no cache local. Se [sync] for true, envia para a API REST.
   Future<void> addGroup(Group group, bool sync) async {
     await _box.put(group.id, group);
     if (sync) {
@@ -25,6 +46,8 @@ class GroupRepository {
     }
   }
 
+  /// Cria o grupo padrão "Casa" (id=1, isDefault=true) somente no cache local.
+  /// Chamado no primeiro login para garantir que todo usuário tenha ao menos um grupo.
   Future<void> createDefaultGroup() async {
     final defaultGroup = Group(
       id: 1,
@@ -37,6 +60,7 @@ class GroupRepository {
     print('Grupo padrão criado: ${defaultGroup.name}');
   }
 
+  /// Retorna o grupo padrão (isDefault == true), ou null se não existir.
   Future<Group?> getDefaultGroup() async {
     try {
       return _box.values.firstWhere((group) => group.isDefault == true);
@@ -45,6 +69,7 @@ class GroupRepository {
     }
   }
 
+  /// Retorna todos os grupos ordenados por posição (campo [Group.position]).
   List<Group> getGroups() {
     return _box.values.toList()..sort((a, b) => a.position.compareTo(b.position));
   }
@@ -62,6 +87,7 @@ class GroupRepository {
     syncGroupPostPut(group, false);
   }
 
+  /// Envia DELETE para a API e remove o grupo do cache Hive.
   Future<void> syncGroupDelete(int id) async {
     try {
       final token = await SessionUtils.getToken();
@@ -89,6 +115,8 @@ class GroupRepository {
     }
   }
 
+  /// Envia POST (criação) ou PUT (atualização) para a API e atualiza o cache local
+  /// com o grupo retornado pelo servidor.
   Future<void> syncGroupPostPut(Group group, bool newGroup) async {
     try {
       final token = await SessionUtils.getToken();
@@ -132,6 +160,7 @@ class GroupRepository {
     }
   }
 
+  /// Baixa todos os grupos da API e substitui o cache local completamente.
   Future<void> syncGroupsGet() async {
     try {
       final token = await SessionUtils.getToken();
@@ -168,6 +197,7 @@ class GroupRepository {
     }
   }
 
+  /// Remove todos os grupos do cache local sem sincronizar com a API.
   Future<void> clearAll() async {
     await _box.clear();
   }

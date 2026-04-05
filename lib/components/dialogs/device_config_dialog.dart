@@ -1,6 +1,22 @@
+// =============================================================================
+// device_config_dialog.dart
+//
+// Dialog de progresso para o fluxo de configuração BLE de um novo dispositivo.
+// Exibe os [steps] do processo e executa [onProcess] de forma assíncrona,
+// atualizando a mensagem exibida via callback.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 
+/// Dialog animado que exibe o progresso da configuração BLE de um novo dispositivo.
+///
+/// [steps]: lista de mensagens de passo exibidas sequencialmente.
+/// [onProcess]: função assíncrona que executa a configuração e chama o callback
+///              fornecido para atualizar o passo atual exibido.
 class DeviceConfigDialog extends StatefulWidget {
   final List<String> steps;
   final Future<void> Function(Function(String) updateStep) onProcess;

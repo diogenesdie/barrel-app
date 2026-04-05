@@ -1,11 +1,41 @@
+// =============================================================================
+// button_sender_service.dart
+//
+// Serviço para enviar comandos de botão a dispositivos IR/RF.
+//
+// Lógica de comunicação híbrida:
+//   - Modo "auto":  tenta HTTP local (mesma rede Wi-Fi) primeiro; se falhar,
+//                   usa MQTT como fallback remoto.
+//   - Modo "local": somente HTTP direto ao firmware (porta 8080).
+//
+// O modo é lido do SharedPreferences sob a chave "communication_mode".
+// O comando é criptografado com AES-CBC antes do envio HTTP (via [encryptData]).
+//
+// Nota: _sendHttpCommand e _getCurrentSsid também existem em
+// your_home_page.dart e devices_utils.dart. Candidatos à consolidação futura.
+// =============================================================================
+
+// Terceiros
+import 'package:http/http.dart' as http;
 import 'package:network_info_plus/network_info_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' as http;
+
+// Projeto — modelos e serviços
 import 'package:smart_home/models/device.dart';
 import 'package:smart_home/services/mqtt_service.dart';
+
+// Projeto — utils
 import 'package:smart_home/utils/crypto_utils.dart';
 
+/// Serviço responsável por enviar comandos de botão a dispositivos.
+///
+/// Abstrai o protocolo de comunicação (HTTP local ou MQTT remoto)
+/// de acordo com a preferência do usuário e a rede atual.
 class ButtonSenderService {
+  /// Envia o [newState] criptografado diretamente ao firmware do [device] via HTTP.
+  /// Usa AES-CBC com a chave armazenada em [Device.ivKey].
+  ///
+  /// Nota: função equivalente existe em your_home_page.dart e devices_utils.dart.
   Future<bool> _sendHttpCommand(Device device, String newState, Duration timeout) async {
     bool ok = false;
 
@@ -33,12 +63,19 @@ class ButtonSenderService {
     return ok;
   }
 
+  /// Retorna o SSID da rede Wi-Fi atual, ou null se indisponível.
+  ///
+  /// Nota: função equivalente existe em your_home_page.dart e devices_utils.dart.
   Future<String?> _getCurrentSsid() async {
     final info = NetworkInfo();
     final ssid = await info.getWifiName();
     return ssid?.replaceAll('"', '');
   }
   
+  /// Envia o pressionamento de [buttonName] ao [device] usando o modo de comunicação ativo.
+  ///
+  /// Em modo "auto": tenta HTTP local primeiro; se falhar, usa MQTT.
+  /// Em modo "local": somente HTTP.
   Future<void> sendButton({
     required String buttonName,
     required Device device,
@@ -66,6 +103,9 @@ class ButtonSenderService {
     }
   }
 
+  /// Envia um [command] genérico ao [device] e retorna true se bem-sucedido.
+  ///
+  /// Segue a mesma lógica de protocolo que [sendButton].
   Future<bool> sendCommand({
     required String command,
     required Device device,

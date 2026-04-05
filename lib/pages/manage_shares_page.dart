@@ -1,11 +1,28 @@
+// =============================================================================
+// manage_shares_page.dart
+//
+// Tela de gerenciamento dos compartilhamentos enviados pelo usuário.
+// Lista os compartilhamentos ativos (não revogados) criados pelo usuário logado
+// e permite revogá-los individualmente.
+// Acessível via ícone na AppBar da DevicesPage.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Projeto — core e modelos
 import 'package:smart_home/core/constants.dart';
 import 'package:smart_home/models/device_share.dart';
 import 'package:smart_home/models/device_share_repository.dart';
+
+// Projeto — páginas e utils
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
+/// Tela de listagem e revogação dos compartilhamentos criados pelo usuário.
 class ManageShares extends StatefulWidget {
   const ManageShares({super.key});
 
@@ -26,6 +43,9 @@ class _ManageSharesState extends State<ManageShares> {
     _loadMyShares();
   }
 
+  // SECTION: Carregamento de dados
+
+  /// Busca os compartilhamentos do usuário logado e filtra os não revogados.
   Future<void> _loadMyShares() async {
     setState(() => _isLoading = true);
 
@@ -59,6 +79,9 @@ class _ManageSharesState extends State<ManageShares> {
     }
   }
 
+  // SECTION: Ações sobre compartilhamentos
+
+  /// Exibe confirmação e revoga o [share] selecionado via API.
   Future<void> _revokeShare(DeviceShare share) async {
     final confirmar = await showDialog<bool>(
       context: context,

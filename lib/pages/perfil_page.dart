@@ -1,10 +1,31 @@
+// =============================================================================
+// perfil_page.dart
+//
+// Tela de perfil do usuário autenticado.
+//
+// Seções:
+//   - Dados pessoais: nome, e-mail, telefone (editáveis via PATCH /profile)
+//   - Código de compartilhamento: exibido para receber dispositivos de outros
+//   - Segurança biométrica: ativar/desativar por tipo de ação
+//   - Alterar senha: formulário separado
+//   - Sair da conta: limpa sessão e redireciona para /auth
+//
+// TODO: Persistir preferências de biometria no backend (campos biometric_*)
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — páginas e utils
 import 'package:smart_home/pages/auth_page.dart';
 import 'package:smart_home/utils/session_utils.dart';
 
+/// Tela de perfil com edição de dados pessoais, configurações de biometria e logout.
 class PerfilPage extends StatefulWidget {
   const PerfilPage({super.key});
 
@@ -13,6 +34,7 @@ class PerfilPage extends StatefulWidget {
 }
 
 class _PerfilPageState extends State<PerfilPage> {
+  // SECTION: Controllers e estado de formulário
   final _formKey = GlobalKey<FormState>();
 
   final _nomeCtrl = TextEditingController();
@@ -42,6 +64,9 @@ class _PerfilPageState extends State<PerfilPage> {
     _loadUserInfo();
   }
 
+  // SECTION: Inicialização e carregamento de dados
+
+  /// Popula os campos de formulário com os dados do usuário logado.
   void _loadUserInfo() async {
     final user = await SessionUtils.getUser();
     final nome = user?['name'] as String?;
@@ -67,6 +92,9 @@ class _PerfilPageState extends State<PerfilPage> {
     });
   }
 
+  // SECTION: Helpers de decoração de campo
+
+  /// Retorna a decoração padrão dos campos de formulário do perfil.
   InputDecoration _dec(String label, IconData icon, {Widget? suffix}) {
     return InputDecoration(
       labelText: label,
@@ -82,6 +110,9 @@ class _PerfilPageState extends State<PerfilPage> {
     );
   }
 
+  // SECTION: Ações de perfil
+
+  /// Valida o formulário e envia PATCH para atualizar os dados do usuário.
   Future<void> _salvarPerfil() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -117,6 +148,7 @@ class _PerfilPageState extends State<PerfilPage> {
     }
   }
 
+  /// Valida as senhas e exibe confirmação de alteração.
   Future<void> _alterarSenha() async {
     if (_senhaAtualCtrl.text.isEmpty || _senhaNovaCtrl.text.isEmpty || _senhaNovaCtrl.text != _senhaConfirmaCtrl.text) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -133,6 +165,7 @@ class _PerfilPageState extends State<PerfilPage> {
     _senhaConfirmaCtrl.clear();
   }
 
+  /// Copia o código de compartilhamento para a área de transferência.
   Future<void> _copyShareCode() async {
     if (_shareCode == null || _shareCode!.isEmpty) return;
     await Clipboard.setData(ClipboardData(text: _shareCode!));

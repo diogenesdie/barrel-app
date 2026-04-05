@@ -1,16 +1,42 @@
+// =============================================================================
+// home_page.dart
+//
+// Hub de navegação principal do aplicativo.
+//
+// Estrutura de abas (PageView + BottomNavigationBar):
+//   - Índice 0: YourHomePage  — dashboard de controle de dispositivos
+//   - Índice 1: DevicesPage   — gerenciamento de dispositivos e grupos
+//   - Índice 2: PerfilPage    — perfil do usuário e configurações
+//
+// Também gerencia o toggle de modo de comunicação (auto/local) no AppBar,
+// persistido em SharedPreferences via [COMM_KEY].
+// =============================================================================
+
+// Dart SDK
+import 'dart:async';
 import 'dart:convert';
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:http/http.dart' as http;
+import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — componentes e core
 import 'package:smart_home/components/gradient_icon.dart';
 import 'package:smart_home/core/constants.dart';
+
+// Projeto — páginas
 import 'package:smart_home/pages/devices_page.dart';
 import 'package:smart_home/pages/perfil_page.dart';
 import 'package:smart_home/pages/your_home_page.dart';
-import 'package:smart_home/utils/session_utils.dart';
-import 'dart:async';
 
+// Projeto — utils
+import 'package:smart_home/utils/session_utils.dart';
+
+/// Tela principal com navegação por abas (Início, Dispositivos, Perfil).
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
 
@@ -19,6 +45,7 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  // SECTION: Estado — dispositivos e navegação
   List<dynamic> devices = [];
   int _selectedIndex = 0;
   final PageController _pageController = PageController();
@@ -41,12 +68,16 @@ class _HomePageState extends State<HomePage> {
     _pages = [const YourHomePage(), const DevicesPage(), const PerfilPage()];
   }
 
+  // SECTION: Carregamento de dados
+
+  /// Carrega os dispositivos favoritos do SharedPreferences e busca seus estados HTTP.
   Future<void> _loadDevices() async {
     final prefs = await SharedPreferences.getInstance();
     final devicesJson = prefs.getString("devices") ?? "[]";
     getDevicesStates(jsonDecode(devicesJson));
   }
 
+  /// Lê o modo de comunicação salvo no SharedPreferences e atualiza o estado.
   Future<void> _loadCommMode() async {
     bool isLoggedIn = await SessionUtils.isLoggedIn();
 
@@ -99,6 +130,9 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  // SECTION: Ações do usuário
+
+  /// Navega para a aba [index] com animação suave.
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -116,6 +150,7 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
+  /// Alterna o modo de comunicação entre auto (nuvem) e local, persistindo a preferência.
   void _toggleCommunicationMode() async {
     bool isLoggedIn = await SessionUtils.isLoggedIn();
 

@@ -1,20 +1,48 @@
+// =============================================================================
+// device_repository.dart
+//
+// Repositório de dispositivos com persistência dual:
+//   - Local:  Hive (box "devicesBox") para acesso offline
+//   - Remoto: API REST via HTTP para sincronização com o servidor
+//
+// Também sincroniza dispositivos favoritos com SharedPreferences para
+// que o widget de tela inicial (home screen widget) possa acessá-los
+// sem depender do Hive.
+// =============================================================================
+
+// Dart SDK
 import 'dart:convert';
+
+// Terceiros
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
+
+// Projeto — modelos
 import 'package:smart_home/models/device_action.dart';
+
+// Projeto — serviços e utils
 import 'package:smart_home/services/mqtt_service.dart';
 import 'package:smart_home/utils/session_utils.dart';
 import 'package:smart_home/utils/widget_utils.dart';
+
+// Modelos locais (mesmo diretório)
 import 'device.dart';
 import 'group.dart';
 
+/// Repositório responsável pelo ciclo de vida dos dispositivos.
+///
+/// Gerencia criação, leitura, atualização e remoção tanto no cache Hive local
+/// quanto na API REST remota. Também mantém a lista de favoritos sincronizada
+/// no SharedPreferences para uso pelo home screen widget.
 class DeviceRepository {
   static const String _boxName = "devicesBox";
   final String apiBaseUrl;
 
   DeviceRepository({required this.apiBaseUrl});
 
+  /// Inicializa o Hive e abre o box de dispositivos.
+  /// Deve ser chamado em [main()] antes de [runApp].
   static Future<void> initHive() async {
     await Hive.initFlutter();
     Hive.registerAdapter(DeviceAdapter());
@@ -23,10 +51,12 @@ class DeviceRepository {
 
   Box<Device> get _box => Hive.box<Device>(_boxName);
 
+  /// Retorna o dispositivo com o [id] informado, ou null se não encontrado no cache local.
   Future<Device?> getDeviceById(int id) async {
     return _box.get(id);
   }
 
+  /// Salva o dispositivo no cache local. Se [sync] for true, envia para a API REST.
   Future<void> addDevice(Device device, bool sync) async {
     await _box.put(device.id, device);
     if (sync) {
@@ -35,6 +65,7 @@ class DeviceRepository {
     await addOrRemoveToSharedPreferencesWhenFavorite(device);
   }
 
+  /// Retorna todos os dispositivos do cache local, ordenados pela posição do grupo.
   List<Device> getDevices() {
     final devices = _box.values.toList();
     final groupBox = Hive.box<Group>("groupsBox");
@@ -53,6 +84,7 @@ class DeviceRepository {
     return devices;
   }
 
+  /// Remove o dispositivo localmente e na API. Também remove suas automações ([DeviceAction]).
   Future<void> removeDevice(int id) async {
     final device = _box.get(id);
     if (device != null && device.isFavorite) {
@@ -74,6 +106,8 @@ class DeviceRepository {
     await _box.clear();
   }
 
+  /// Mantém a lista de favoritos no SharedPreferences sincronizada com o estado do [device].
+  /// Usada pelo home screen widget do sistema operacional, que não acessa o Hive diretamente.
   Future<void> addOrRemoveToSharedPreferencesWhenFavorite(Device device) async {
     final prefs = await SharedPreferences.getInstance();
     final devicesJson = prefs.getString("devices") ?? "[]";
@@ -99,6 +133,7 @@ class DeviceRepository {
     updateWidget();
   }
 
+  /// Atualiza o dispositivo no cache local e, se [sync] for true, envia para a API REST.
   Future<void> updateDevice(Device device, {bool sync = true}) async {
     await _box.put(device.id, device);
     await addOrRemoveToSharedPreferencesWhenFavorite(device);
@@ -107,6 +142,7 @@ class DeviceRepository {
     }
   }
 
+  /// Envia DELETE para a API e remove o dispositivo do cache Hive.
   Future<void> syncDeviceDelete(int id) async {
     try {
       final token = await SessionUtils.getToken();
@@ -133,6 +169,9 @@ class DeviceRepository {
     }
   }
 
+  /// Envia POST (criação) ou PUT (atualização) para a API e substitui o cache local
+  /// pelo dispositivo retornado pelo servidor (pode ter um id diferente após criação).
+  /// Também republica as automações MQTT associadas ao dispositivo.
   Future<void> syncDevicePostPut(Device device, bool newDevice) async {
     try {
       final token = await SessionUtils.getToken();
@@ -191,6 +230,7 @@ class DeviceRepository {
     }
   }
 
+  /// Baixa todos os dispositivos da API e substitui o cache local completamente.
   Future<void> syncDevicesGet() async {
     try {
       final token = await SessionUtils.getToken();
@@ -226,6 +266,7 @@ class DeviceRepository {
     }
   }
 
+  /// Remove todos os dispositivos do cache local sem sincronizar com a API.
   Future<void> clearAll() async {
     await _box.clear();
   }

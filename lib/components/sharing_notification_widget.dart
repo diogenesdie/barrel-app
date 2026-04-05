@@ -1,7 +1,28 @@
+// =============================================================================
+// sharing_notification_widget.dart
+//
+// Widget expansível que lista solicitações de compartilhamento pendentes.
+// Exibe um badge com a contagem e permite aceitar ou recusar cada solicitação.
+//
+// Classes neste arquivo:
+//   - [SharingNotificationWidget]: widget público expansível
+//   - [_ShareRequestItem]:         item individual de uma solicitação
+//   - [_ActionButton]:             botão animado de aceitar/recusar
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
+
+// Terceiros
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+
+// Projeto — modelos
 import 'package:smart_home/models/device_share.dart';
 
+/// Widget expansível de notificação de compartilhamentos pendentes.
+///
+/// Ao clicar, expande para exibir cada solicitação com botões de aceitar/recusar.
+/// Retorna ao estado colapsado automaticamente se [pendingShares] ficar vazio.
 class SharingNotificationWidget extends StatefulWidget {
   final List<DeviceShare> pendingShares;
   final Function(int shareId) onAccept;
@@ -175,6 +196,7 @@ class _SharingNotificationWidgetState extends State<SharingNotificationWidget> w
   }
 }
 
+/// Item individual exibindo as informações de uma solicitação de compartilhamento.
 class _ShareRequestItem extends StatelessWidget {
   final DeviceShare share;
   final VoidCallback onAccept;
@@ -263,6 +285,7 @@ class _ShareRequestItem extends StatelessWidget {
   }
 }
 
+/// Botão com animação de scale ao pressionar. Usado para aceitar e recusar compartilhamentos.
 class _ActionButton extends StatefulWidget {
   final IconData icon;
   final String label;

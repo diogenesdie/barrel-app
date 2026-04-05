@@ -1,5 +1,19 @@
+// =============================================================================
+// loading.dart
+//
+// Widget de carregamento animado com três pontos pulsantes em gradiente.
+// Exibe uma mensagem opcional abaixo dos pontos.
+// =============================================================================
+
+// Flutter
 import 'package:flutter/material.dart';
 
+/// Widget de carregamento com três pontos animados em gradiente do tema.
+///
+/// Cada ponto tem um delay progressivo criando efeito de onda.
+/// Parâmetros opcionais:
+///   - [mensagem]: texto exibido abaixo dos pontos
+///   - [color]: cor base (padrão: cor primária do tema)
 class Loading extends StatefulWidget {
   final String? mensagem;
   final Color? color;
