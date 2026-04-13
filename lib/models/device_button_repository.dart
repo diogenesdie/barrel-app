@@ -18,6 +18,10 @@ import 'package:http/http.dart' as http;
 // Projeto — modelos
 import 'package:smart_home/models/device_button.dart';
 
+// Projeto — utils e constantes
+import 'package:smart_home/core/constants.dart';
+import 'package:smart_home/utils/session_utils.dart';
+
 /// Repositório de botões de controle remoto de dispositivos IR/RF.
 ///
 /// Gerencia o cache local Hive e a busca direta do firmware do dispositivo.
@@ -47,7 +51,7 @@ class DeviceButtonRepository {
   }
 
   /// Busca os botões disponíveis diretamente do firmware do dispositivo via HTTP.
-  /// Se [saveAfterFetch] for true, salva os botões no cache Hive após a busca.
+  /// Se [saveAfterFetch] for true, salva os botões no cache Hive e sincroniza com o backend.
   Future<List<DeviceButton>> fetchFromDevice(String ip, int deviceId, bool saveAfterFetch) async {
     final response = await http.get(Uri.parse("http://$ip:8080/buttons")).timeout(const Duration(seconds: 5));
     if (response.statusCode != 200) {
@@ -62,9 +66,40 @@ class DeviceButtonRepository {
 
     if (saveAfterFetch) {
       await saveButtons(buttons, deviceId);
+      syncToBackend(buttons, deviceId); // fire-and-forget para não bloquear a UI
     }
 
     return buttons;
+  }
+
+  /// Sincroniza os botões com o backend para que a Alexa possa descobri-los.
+  /// Chamada como fire-and-forget — falhas são silenciosas para não afetar a UX.
+  Future<void> syncToBackend(List<DeviceButton> buttons, int deviceId) async {
+    try {
+      final token = await SessionUtils.getToken();
+      if (token == null || token.isEmpty) return;
+
+      final payload = jsonEncode({
+        "buttons": buttons.map((b) => {
+          "original_name": b.originalName,
+          "protocol":      b.protocol,
+          "address":       b.address,
+          "command":       b.command,
+          "label":         b.label,
+        }).toList(),
+      });
+
+      await http.post(
+        Uri.parse("$BASE_API_URL/devices/$deviceId/buttons"),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $token",
+        },
+        body: payload,
+      ).timeout(const Duration(seconds: 10));
+    } catch (_) {
+      // Sincronização best-effort — dispositivo continua funcionando localmente
+    }
   }
 
   /// Remove todos os botões do [deviceId] do cache local.
