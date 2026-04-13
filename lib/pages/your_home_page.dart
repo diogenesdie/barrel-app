@@ -62,6 +62,7 @@ import 'package:smart_home/components/dialogs/device_config_dialog.dart';
 import 'package:smart_home/components/dialogs/error_message_dialog.dart';
 import 'package:smart_home/components/loading.dart';
 import 'package:smart_home/components/no_device.dart';
+import 'package:smart_home/components/scenes_section.dart';
 import 'package:smart_home/components/sequencial_text_switch.dart';
 
 // Projeto — pages
@@ -1437,6 +1438,8 @@ class _YourHomePageState extends State<YourHomePage> with WidgetsBindingObserver
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              const ScenesSectionWidget(),
               const SizedBox(height: 10),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8.0),
